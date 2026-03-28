@@ -2,6 +2,7 @@
   "name": "gu-acmerdb",
   "private": false,
   "version": "0.0.0",
+  "packageManager": "npm@10.9.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
