@@ -108,6 +108,7 @@ function sortCompetitionDesc(a: Competition, b: Competition): number {
 export async function fetchMembers(filters?: {
   query?: string
   cohortYear?: number
+  isActive?: boolean
 }) {
   const client = getSupabaseClient()
 
@@ -119,6 +120,10 @@ export async function fetchMembers(filters?: {
 
   if (filters?.cohortYear) {
     query = query.eq('cohort_year', filters.cohortYear)
+  }
+
+  if (filters?.isActive !== undefined) {
+    query = query.eq('is_active', filters.isActive)
   }
 
   if (filters?.query && filters.query.trim().length > 0) {

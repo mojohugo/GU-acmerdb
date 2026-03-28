@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { fetchCohortOverview } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { Competition, ContestCategory } from '../types'
+
+type CategoryFilter = ContestCategory | 'all'
 
 function cohortKey(competition: Competition): number {
   return competition.cohortYear ?? 0
@@ -43,10 +46,27 @@ function groupByType(items: Competition[]) {
   return grouped
 }
 
+function toSearchText(competition: Competition) {
+  return [
+    competition.title,
+    competition.teamName ?? '',
+    competition.award ?? '',
+    competition.rank ?? '',
+    competition.remark ?? '',
+    ...competition.participants.map((member) => member.name),
+  ]
+    .join(' ')
+    .toLowerCase()
+}
+
 export function CohortsPage() {
   const [competitions, setCompetitions] = useState<Competition[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
+  const [keyword, setKeyword] = useState('')
+
+  const debouncedKeyword = useDebouncedValue(keyword, 250)
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -84,17 +104,82 @@ export function CohortsPage() {
     }
   }, [])
 
-  const sections = useMemo(() => groupByCohort(competitions), [competitions])
+  const filteredCompetitions = useMemo(() => {
+    const normalizedKeyword = debouncedKeyword.trim().toLowerCase()
+
+    return competitions.filter((competition) => {
+      if (categoryFilter !== 'all' && competition.category !== categoryFilter) {
+        return false
+      }
+
+      if (!normalizedKeyword) {
+        return true
+      }
+
+      return toSearchText(competition).includes(normalizedKeyword)
+    })
+  }, [categoryFilter, competitions, debouncedKeyword])
+
+  const sections = useMemo(
+    () => groupByCohort(filteredCompetitions),
+    [filteredCompetitions],
+  )
+
+  const hasFilters = categoryFilter !== 'all' || keyword.trim().length > 0
 
   return (
     <div className="stack">
       <section className="panel">
         <div className="panel-header">
           <h2>按届别查看赛事</h2>
-          <p>
-            可看到每一届在新生赛、校赛、ICPC/CCPC
-            区域赛、省赛、蓝桥杯、天梯赛上的记录。
-          </p>
+          <p>支持按赛事分类 + 关键词（赛事名、队伍、奖项、成员）快速筛选。</p>
+        </div>
+
+        <div className="filters">
+          <label>
+            分类
+            <select
+              value={categoryFilter}
+              onChange={(event) =>
+                setCategoryFilter(event.target.value as CategoryFilter)
+              }
+            >
+              <option value="all">全部分类</option>
+              {CONTEST_TYPE_ORDER.map((category) => (
+                <option key={category} value={category}>
+                  {CONTEST_TYPE_LABELS[category]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            关键词
+            <input
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="赛事名 / 队伍 / 奖项 / 成员"
+            />
+          </label>
+        </div>
+
+        <div className="filters-toolbar">
+          <button
+            className="btn"
+            type="button"
+            disabled={!hasFilters}
+            onClick={() => {
+              setCategoryFilter('all')
+              setKeyword('')
+            }}
+          >
+            清空筛选
+          </button>
+          {!loading && !error ? (
+            <span className="status-hint">
+              共 {filteredCompetitions.length} 条记录，覆盖 {sections.length} 个届别
+            </span>
+          ) : null}
         </div>
 
         {loading ? <p className="status">正在加载届别赛事...</p> : null}
@@ -102,7 +187,7 @@ export function CohortsPage() {
 
         {!loading && !error ? (
           sections.length === 0 ? (
-            <EmptyState title="暂无赛事数据" description="请先在管理页面录入赛事。" />
+            <EmptyState title="暂无匹配赛事数据" description="可尝试清空筛选后重试。" />
           ) : (
             <div className="stack">
               {sections.map(([year, items]) => {
@@ -144,9 +229,7 @@ export function CohortsPage() {
                                     ? ` ${competition.participants.map((member) => member.name).join('、')}`
                                     : ' 暂无关联'}
                                 </p>
-                                {competition.remark ? (
-                                  <p>备注: {competition.remark}</p>
-                                ) : null}
+                                {competition.remark ? <p>备注: {competition.remark}</p> : null}
                               </article>
                             ))}
                           </div>
@@ -159,6 +242,10 @@ export function CohortsPage() {
             </div>
           )
         ) : null}
+
+        <p className="todo-note">
+          TODO: 后续补充“时间轴视图 + 届别对比图 + 一键导出当前筛选结果”。
+        </p>
       </section>
     </div>
   )

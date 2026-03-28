@@ -1,17 +1,57 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../components/EmptyState'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { fetchAvailableCohorts, fetchMembers } from '../lib/api'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { Member } from '../types'
 
+type StatusFilter = 'all' | 'active' | 'inactive'
+
+function parseCohort(raw: string | null): number | '' {
+  if (!raw) {
+    return ''
+  }
+
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : ''
+}
+
+function parseStatus(raw: string | null): StatusFilter {
+  if (raw === 'active' || raw === 'inactive') {
+    return raw
+  }
+
+  return 'all'
+}
+
+function toActiveFilter(statusFilter: StatusFilter): boolean | undefined {
+  if (statusFilter === 'active') {
+    return true
+  }
+
+  if (statusFilter === 'inactive') {
+    return false
+  }
+
+  return undefined
+}
+
 export function MembersPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [members, setMembers] = useState<Member[]>([])
   const [cohorts, setCohorts] = useState<number[]>([])
-  const [query, setQuery] = useState('')
-  const [cohortYear, setCohortYear] = useState<number | ''>('')
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  const [cohortYear, setCohortYear] = useState<number | ''>(() =>
+    parseCohort(searchParams.get('cohort')),
+  )
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
+    parseStatus(searchParams.get('status')),
+  )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const debouncedQuery = useDebouncedValue(query, 300)
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -29,7 +69,7 @@ export function MembersPage() {
           setCohorts(items)
         }
       } catch {
-        // Keep page usable even when this auxiliary query fails.
+        // keep page usable if auxiliary query fails
       }
     }
 
@@ -39,6 +79,20 @@ export function MembersPage() {
       disposed = true
     }
   }, [])
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams()
+    if (query.trim()) {
+      nextParams.set('q', query.trim())
+    }
+    if (cohortYear !== '') {
+      nextParams.set('cohort', String(cohortYear))
+    }
+    if (statusFilter !== 'all') {
+      nextParams.set('status', statusFilter)
+    }
+    setSearchParams(nextParams, { replace: true })
+  }, [query, cohortYear, statusFilter, setSearchParams])
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -53,8 +107,9 @@ export function MembersPage() {
 
       try {
         const result = await fetchMembers({
-          query,
+          query: debouncedQuery,
           cohortYear: cohortYear === '' ? undefined : cohortYear,
+          isActive: toActiveFilter(statusFilter),
         })
 
         if (!disposed) {
@@ -76,14 +131,17 @@ export function MembersPage() {
     return () => {
       disposed = true
     }
-  }, [query, cohortYear])
+  }, [debouncedQuery, cohortYear, statusFilter])
+
+  const isFiltering =
+    query.trim().length > 0 || cohortYear !== '' || statusFilter !== 'all'
 
   return (
     <div className="stack">
       <section className="panel">
         <div className="panel-header">
           <h2>队员列表</h2>
-          <p>按姓名/ID 搜索，支持按届别筛选。</p>
+          <p>支持关键词、届别、在队状态组合筛选（URL 会自动记住筛选条件）。</p>
         </div>
 
         <div className="filters">
@@ -92,7 +150,7 @@ export function MembersPage() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="姓名或 handle"
+              placeholder="姓名 / handle"
             />
           </label>
 
@@ -113,6 +171,36 @@ export function MembersPage() {
               ))}
             </select>
           </label>
+
+          <label>
+            状态
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+            >
+              <option value="all">全部状态</option>
+              <option value="active">仅在队</option>
+              <option value="inactive">仅已毕业/离队</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="filters-toolbar">
+          <button
+            className="btn"
+            type="button"
+            disabled={!isFiltering}
+            onClick={() => {
+              setQuery('')
+              setCohortYear('')
+              setStatusFilter('all')
+            }}
+          >
+            清空筛选
+          </button>
+          {!loading && !error ? (
+            <span className="status-hint">共 {members.length} 名队员</span>
+          ) : null}
         </div>
 
         {loading ? <p className="status">正在加载队员数据...</p> : null}
@@ -154,6 +242,10 @@ export function MembersPage() {
             </div>
           )
         ) : null}
+
+        <p className="todo-note">
+          TODO: 后续增加“多字段排序 + 分页 + 导出 CSV”能力，避免队员规模变大后单页加载过重。
+        </p>
       </section>
     </div>
   )
