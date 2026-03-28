@@ -431,6 +431,43 @@ export async function createMember(input: MemberDraft) {
   return mapMember(data as unknown as Record<string, unknown>)
 }
 
+export async function updateMember(memberId: string, input: MemberDraft) {
+  const client = getSupabaseClient()
+
+  const payload = {
+    name: input.name.trim(),
+    handle: input.handle?.trim() || null,
+    cohort_year: input.cohortYear,
+    class_name: input.className?.trim() || null,
+    major: input.major?.trim() || null,
+    joined_team_year: input.joinedTeamYear ?? null,
+    is_active: input.isActive,
+    bio: input.bio?.trim() || null,
+  }
+
+  const { data, error } = await client
+    .from('members')
+    .update(payload)
+    .eq('id', memberId)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  return mapMember(data as unknown as Record<string, unknown>)
+}
+
+export async function deleteMember(memberId: string) {
+  const client = getSupabaseClient()
+  const { error } = await client.from('members').delete().eq('id', memberId)
+
+  if (error) {
+    throw error
+  }
+}
+
 export async function createCompetition(input: CompetitionDraft) {
   const client = getSupabaseClient()
 
@@ -480,6 +517,71 @@ export async function createCompetition(input: CompetitionDraft) {
   }
 
   return competitionId
+}
+
+export async function updateCompetition(
+  competitionId: string,
+  input: CompetitionDraft,
+) {
+  const client = getSupabaseClient()
+
+  const payload = {
+    title: input.title.trim(),
+    category: input.category,
+    season_year: input.seasonYear,
+    cohort_year: input.cohortYear ?? null,
+    contest_level: input.contestLevel?.trim() || null,
+    award: input.award?.trim() || null,
+    rank: input.rank?.trim() || null,
+    team_name: input.teamName?.trim() || null,
+    happened_at: input.happenedAt || null,
+    remark: input.remark?.trim() || null,
+  }
+
+  const { error: updateError } = await client
+    .from('competitions')
+    .update(payload)
+    .eq('id', competitionId)
+
+  if (updateError) {
+    throw updateError
+  }
+
+  const { error: clearLinksError } = await client
+    .from('competition_members')
+    .delete()
+    .eq('competition_id', competitionId)
+
+  if (clearLinksError) {
+    throw clearLinksError
+  }
+
+  if (input.memberIds.length > 0) {
+    const links = input.memberIds.map((memberId) => ({
+      competition_id: competitionId,
+      member_id: memberId,
+    }))
+
+    const { error: insertLinksError } = await client
+      .from('competition_members')
+      .insert(links)
+
+    if (insertLinksError) {
+      throw insertLinksError
+    }
+  }
+}
+
+export async function deleteCompetition(competitionId: string) {
+  const client = getSupabaseClient()
+  const { error } = await client
+    .from('competitions')
+    .delete()
+    .eq('id', competitionId)
+
+  if (error) {
+    throw error
+  }
 }
 
 export async function getAdminSessionWithProfile(): Promise<{

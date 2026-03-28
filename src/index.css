@@ -153,6 +153,12 @@ p {
   gap: 10px;
 }
 
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .btn {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -182,6 +188,22 @@ p {
 .btn-solid:hover {
   background: var(--primary-dark);
   border-color: var(--primary-dark);
+}
+
+.btn-small {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.btn-danger {
+  border-color: #e3bbbb;
+  background: #fff4f4;
+  color: #963333;
+}
+
+.btn-danger:hover {
+  border-color: #c95f5f;
+  color: #7f2222;
 }
 
 .panel-header {
