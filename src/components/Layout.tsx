@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router-dom'
 import type { PropsWithChildren } from 'react'
+import { NavLink } from 'react-router-dom'
 
 function navClassName({ isActive }: { isActive: boolean }) {
   return isActive ? 'nav-link nav-link-active' : 'nav-link'
@@ -35,12 +35,7 @@ export function Layout({ children }: PropsWithChildren) {
       <main className="main-panel">{children}</main>
 
       <footer className="footer">
-        <div>
-          <p>GU ACMerDB · React + Vite + Supabase</p>
-          <p className="footer-subtle">
-            Hash 路由已启用，可直接部署到 GitHub Pages，刷新不会 404。
-          </p>
-        </div>
+        <p>GU ACMerDB</p>
       </footer>
     </div>
   )
