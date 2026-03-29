@@ -33,7 +33,7 @@ export function Layout({ children }: PropsWithChildren) {
             队员
           </NavLink>
           <NavLink to="/cohorts" className={navClassName}>
-            届别赛事
+            赛事时间线
           </NavLink>
           <NavLink to="/admin" className={navClassName}>
             管理

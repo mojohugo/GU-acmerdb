@@ -39,7 +39,6 @@ type CompetitionForm = {
   title: string
   category: ContestCategory
   seasonYear: string
-  cohortYear: string
   contestLevel: string
   teamName: string
   rank: string
@@ -60,7 +59,6 @@ const initialCompetitionForm: CompetitionForm = {
   title: '',
   category: 'freshman',
   seasonYear: '',
-  cohortYear: '',
   contestLevel: '',
   teamName: '',
   rank: '',
@@ -92,11 +90,6 @@ function toCompetitionDraft(
     throw new Error('请填写正确的赛事名称和赛季年份')
   }
 
-  const cohortYear = form.cohortYear ? Number(form.cohortYear) : undefined
-  if (form.cohortYear && (!Number.isFinite(cohortYear) || (cohortYear ?? 0) <= 0)) {
-    throw new Error('届别格式不正确')
-  }
-
   const uniqueMemberIds = [...new Set(memberIds)]
   if (uniqueMemberIds.length === 0) {
     throw new Error('请至少关联 1 名队员')
@@ -110,7 +103,6 @@ function toCompetitionDraft(
     title: form.title.trim(),
     category: form.category,
     seasonYear,
-    cohortYear,
     contestLevel: form.contestLevel.trim() || undefined,
     teamName: form.teamName.trim() || undefined,
     award: form.award.trim() || undefined,
@@ -527,16 +519,6 @@ export function AdminPage() {
                 />
               </label>
               <label>
-                对应届别
-                <input
-                  type="number"
-                  value={competitionForm.cohortYear}
-                  onChange={(e) =>
-                    setCompetitionForm((p) => ({ ...p, cohortYear: e.target.value }))
-                  }
-                />
-              </label>
-              <label>
                 比赛级别
                 <input
                   value={competitionForm.contestLevel}
@@ -790,9 +772,6 @@ export function AdminPage() {
                                 title: competition.title,
                                 category: competition.category,
                                 seasonYear: String(competition.seasonYear),
-                                cohortYear: competition.cohortYear
-                                  ? String(competition.cohortYear)
-                                  : '',
                                 contestLevel: competition.contestLevel ?? '',
                                 teamName: competition.teamName ?? '',
                                 rank: competition.rank ?? '',
@@ -862,16 +841,6 @@ export function AdminPage() {
                       setEditCompetitionForm((p) => ({ ...p, seasonYear: e.target.value }))
                     }
                     required
-                  />
-                </label>
-                <label>
-                  对应届别
-                  <input
-                    type="number"
-                    value={editCompetitionForm.cohortYear}
-                    onChange={(e) =>
-                      setEditCompetitionForm((p) => ({ ...p, cohortYear: e.target.value }))
-                    }
                   />
                 </label>
                 <label>

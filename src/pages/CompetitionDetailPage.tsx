@@ -74,7 +74,7 @@ export function CompetitionDetailPage() {
   return (
     <div className="stack">
       <Link className="inline-link" to="/cohorts">
-        返回届别赛事
+        返回赛事时间线
       </Link>
 
       {loading ? <p className="status">正在加载比赛详情...</p> : null}

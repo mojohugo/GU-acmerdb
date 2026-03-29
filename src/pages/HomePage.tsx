@@ -73,15 +73,15 @@ export function HomePage() {
         <p className="hero-kicker">Guangzhou University</p>
         <h2>ACM 校队信息与成绩记录</h2>
         <p>
-          参考 OIerDb 的浏览体验，重点支持按届别查看新生赛、校赛、ICPC/CCPC
-          区域赛、省赛、蓝桥杯、天梯赛。
+          参考 OIerDb 的浏览体验，重点支持按时间查看新生赛、校赛、ICPC/CCPC
+          区域赛、省赛、蓝桥杯、天梯赛等比赛战绩。
         </p>
         <div className="hero-actions">
           <Link className="btn btn-solid" to="/members">
             查看队员库
           </Link>
           <Link className="btn" to="/cohorts">
-            查看届别赛事
+            查看赛事时间线
           </Link>
         </div>
       </section>
@@ -114,8 +114,7 @@ export function HomePage() {
                       <th>日期</th>
                       <th>赛事</th>
                       <th>分类</th>
-                      <th>届别</th>
-                      <th>奖项</th>
+                      <th>详情</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -131,11 +130,10 @@ export function HomePage() {
                           <ContestTypeTag category={competition.category} />
                         </td>
                         <td>
-                          {competition.cohortYear
-                            ? `${competition.cohortYear} 级`
-                            : '-'}
+                          <Link className="inline-link" to={`/competition/${competition.id}`}>
+                            查看比赛
+                          </Link>
                         </td>
-                        <td>{competition.award ?? '-'}</td>
                       </tr>
                     ))}
                   </tbody>
