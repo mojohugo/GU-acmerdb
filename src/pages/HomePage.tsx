@@ -100,7 +100,7 @@ export function HomePage() {
         <p className="hero-kicker">Guangzhou University</p>
         <h2>ACM 校队信息与成绩记录</h2>
         <p>
-          把队伍经历做成一份可检索的时间档案：谁在什么时间参加了哪场比赛，拿到了什么成绩，都能快速找到。
+          参考 OIerDb 的浏览体验，支持按成员与时间线快速查看比赛记录与成绩明细。
         </p>
         <div className="hero-points">
           <span>按时间线回看战绩</span>
