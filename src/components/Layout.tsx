@@ -16,7 +16,6 @@ export function Layout({ children }: PropsWithChildren) {
           <div className="topbar-brand">
             <p className="topbar-kicker">GU ACM Data</p>
             <h1>广州大学 ACM 校队队员库</h1>
-            <p className="topbar-subtitle">二次元风战绩档案 · 可爱但能打</p>
           </div>
 
           <div className="topbar-status" aria-label="站点状态">
@@ -49,7 +48,6 @@ export function Layout({ children }: PropsWithChildren) {
 
       <footer className="footer">
         <p>GU ACMerDB</p>
-        <p className="footer-subtle">二次元主题版 · 数据持续更新中</p>
       </footer>
     </div>
   )

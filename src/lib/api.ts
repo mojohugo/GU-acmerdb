@@ -25,6 +25,25 @@ export type MemberFilters = {
   isActive?: boolean
 }
 
+export type MemberSortField = 'cohort_year' | 'name' | 'created_at'
+
+export type SortDirection = 'asc' | 'desc'
+
+export type MemberPageQuery = MemberFilters & {
+  page?: number
+  pageSize?: number
+  sortBy?: MemberSortField
+  sortDirection?: SortDirection
+}
+
+export type PagedResult<T> = {
+  items: T[]
+  total: number
+  page: number
+  pageSize: number
+  pageCount: number
+}
+
 const competitionFields = [
   'id',
   'title',
@@ -41,16 +60,24 @@ const competitionFields = [
 ].join(',')
 
 const MEMBERS_CACHE_PREFIX = 'members:'
+const MEMBER_PAGES_CACHE_PREFIX = 'member-pages:'
 const AVAILABLE_COHORTS_CACHE_KEY = 'available-cohorts'
 const MEMBER_DETAIL_CACHE_PREFIX = 'member-detail:'
 const COHORT_OVERVIEW_CACHE_KEY = 'cohort-overview'
 const HOME_STATS_CACHE_KEY = 'home-stats'
 
 const MEMBERS_CACHE_TTL_MS = 60_000
+const MEMBER_PAGES_CACHE_TTL_MS = 60_000
 const AVAILABLE_COHORTS_CACHE_TTL_MS = 5 * 60_000
 const MEMBER_DETAIL_CACHE_TTL_MS = 2 * 60_000
 const COHORT_OVERVIEW_CACHE_TTL_MS = 60_000
 const HOME_STATS_CACHE_TTL_MS = 60_000
+
+const DEFAULT_MEMBERS_PAGE = 1
+const DEFAULT_MEMBERS_PAGE_SIZE = 20
+const MAX_MEMBERS_PAGE_SIZE = 100
+const DEFAULT_MEMBER_SORT_BY: MemberSortField = 'cohort_year'
+const DEFAULT_MEMBER_SORT_DIRECTION: SortDirection = 'desc'
 
 function normalizeMembersFilters(filters?: MemberFilters) {
   return {
@@ -61,9 +88,66 @@ function normalizeMembersFilters(filters?: MemberFilters) {
   }
 }
 
+function toSafePage(input: number | undefined) {
+  if (!Number.isFinite(input)) {
+    return DEFAULT_MEMBERS_PAGE
+  }
+
+  const rounded = Math.floor(input as number)
+  return rounded > 0 ? rounded : DEFAULT_MEMBERS_PAGE
+}
+
+function toSafePageSize(input: number | undefined) {
+  if (!Number.isFinite(input)) {
+    return DEFAULT_MEMBERS_PAGE_SIZE
+  }
+
+  const rounded = Math.floor(input as number)
+  if (rounded <= 0) {
+    return DEFAULT_MEMBERS_PAGE_SIZE
+  }
+
+  return Math.min(rounded, MAX_MEMBERS_PAGE_SIZE)
+}
+
+function normalizeSortBy(input: MemberSortField | undefined): MemberSortField {
+  if (input === 'name' || input === 'created_at' || input === 'cohort_year') {
+    return input
+  }
+
+  return DEFAULT_MEMBER_SORT_BY
+}
+
+function normalizeSortDirection(input: SortDirection | undefined): SortDirection {
+  if (input === 'asc' || input === 'desc') {
+    return input
+  }
+
+  return DEFAULT_MEMBER_SORT_DIRECTION
+}
+
+function normalizeMembersPageQuery(query?: MemberPageQuery) {
+  const normalizedFilters = normalizeMembersFilters(query)
+
+  return {
+    query: normalizedFilters.query,
+    cohortYear: normalizedFilters.cohortYear,
+    isActive: normalizedFilters.isActive,
+    page: toSafePage(query?.page),
+    pageSize: toSafePageSize(query?.pageSize),
+    sortBy: normalizeSortBy(query?.sortBy),
+    sortDirection: normalizeSortDirection(query?.sortDirection),
+  } as const
+}
+
 function toMembersCacheKey(filters?: MemberFilters) {
   const normalized = normalizeMembersFilters(filters)
   return `${MEMBERS_CACHE_PREFIX}${JSON.stringify(normalized)}`
+}
+
+function toMembersPageCacheKey(query?: MemberPageQuery) {
+  const normalized = normalizeMembersPageQuery(query)
+  return `${MEMBER_PAGES_CACHE_PREFIX}${JSON.stringify(normalized)}`
 }
 
 function toMemberDetailCacheKey(memberId: string) {
@@ -72,6 +156,7 @@ function toMemberDetailCacheKey(memberId: string) {
 
 function invalidateMemberRelatedCache() {
   invalidateCacheByPrefix(MEMBERS_CACHE_PREFIX)
+  invalidateCacheByPrefix(MEMBER_PAGES_CACHE_PREFIX)
   invalidateCacheKey(AVAILABLE_COHORTS_CACHE_KEY)
   invalidateCacheByPrefix(MEMBER_DETAIL_CACHE_PREFIX)
   invalidateCacheKey(COHORT_OVERVIEW_CACHE_KEY)
@@ -165,6 +250,10 @@ export function peekMembers(filters?: MemberFilters) {
   return peekCachedValue<Member[]>(toMembersCacheKey(filters))
 }
 
+export function peekMembersPage(query?: MemberPageQuery) {
+  return peekCachedValue<PagedResult<Member>>(toMembersPageCacheKey(query))
+}
+
 export function peekAvailableCohorts() {
   return peekCachedValue<number[]>(AVAILABLE_COHORTS_CACHE_KEY)
 }
@@ -225,6 +314,75 @@ export async function fetchMembers(filters?: MemberFilters) {
       }
 
       return (data ?? []).map((row) => mapMember(row as Record<string, unknown>))
+    },
+  })
+}
+
+export async function fetchMembersPage(
+  query?: MemberPageQuery,
+): Promise<PagedResult<Member>> {
+  const normalized = normalizeMembersPageQuery(query)
+  const cacheKey = `${MEMBER_PAGES_CACHE_PREFIX}${JSON.stringify(normalized)}`
+
+  return fetchWithCache({
+    key: cacheKey,
+    ttlMs: MEMBER_PAGES_CACHE_TTL_MS,
+    fetcher: async () => {
+      const client = getSupabaseClient()
+      const from = (normalized.page - 1) * normalized.pageSize
+      const to = from + normalized.pageSize - 1
+
+      let membersQuery = client
+        .from('members')
+        .select('*', { count: 'exact' })
+        .range(from, to)
+
+      if (normalized.cohortYear) {
+        membersQuery = membersQuery.eq('cohort_year', normalized.cohortYear)
+      }
+
+      if (normalized.isActive !== 'all') {
+        membersQuery = membersQuery.eq('is_active', normalized.isActive === 'active')
+      }
+
+      if (normalized.query.length > 0) {
+        membersQuery = membersQuery.or(
+          `name.ilike.%${normalized.query}%,handle.ilike.%${normalized.query}%`,
+        )
+      }
+
+      const ascending = normalized.sortDirection === 'asc'
+
+      if (normalized.sortBy === 'name') {
+        membersQuery = membersQuery
+          .order('name', { ascending })
+          .order('cohort_year', { ascending: false })
+      } else if (normalized.sortBy === 'created_at') {
+        membersQuery = membersQuery
+          .order('created_at', { ascending })
+          .order('cohort_year', { ascending: false })
+      } else {
+        membersQuery = membersQuery
+          .order('cohort_year', { ascending })
+          .order('name', { ascending: true })
+      }
+
+      const { data, error, count } = await membersQuery
+
+      if (error) {
+        throw error
+      }
+
+      const total = count ?? 0
+      const pageCount = total > 0 ? Math.ceil(total / normalized.pageSize) : 1
+
+      return {
+        items: (data ?? []).map((row) => mapMember(row as Record<string, unknown>)),
+        total,
+        page: normalized.page,
+        pageSize: normalized.pageSize,
+        pageCount,
+      }
     },
   })
 }

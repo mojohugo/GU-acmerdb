@@ -161,11 +161,6 @@ p {
   text-shadow: 0 2px 14px rgba(45, 20, 98, 0.3);
 }
 
-.topbar-subtitle {
-  font-size: 13px;
-  opacity: 0.9;
-}
-
 .topbar-status {
   display: flex;
   flex-wrap: wrap;
@@ -287,24 +282,6 @@ p {
 .hero-card p {
   margin-top: 8px;
   color: var(--subtle);
-}
-
-.hero-tags {
-  margin-top: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.hero-pill {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 6px 11px;
-  font-size: 12px;
-  border: 1px solid rgba(112, 111, 194, 0.24);
-  background: rgba(255, 255, 255, 0.76);
-  color: #564c88;
 }
 
 .hero-actions {
@@ -459,6 +436,14 @@ p {
   align-items: center;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.pagination-row {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
 .status-hint {
@@ -744,12 +729,6 @@ tbody tr:hover {
   text-align: center;
   display: grid;
   gap: 2px;
-}
-
-.footer-subtle {
-  color: #786f9d;
-  margin-top: 2px;
-  font-size: 13px;
 }
 
 @media (max-width: 900px) {
