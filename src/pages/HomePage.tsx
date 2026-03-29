@@ -76,6 +76,11 @@ export function HomePage() {
           参考 OIerDb 的浏览体验，重点支持按届别查看新生赛、校赛、ICPC/CCPC
           区域赛、省赛、蓝桥杯、天梯赛。
         </p>
+        <div className="hero-tags">
+          <span className="hero-pill">✨ 二次元风格</span>
+          <span className="hero-pill">📊 数据可筛选</span>
+          <span className="hero-pill">🚀 支持持续扩展</span>
+        </div>
         <div className="hero-actions">
           <Link className="btn btn-solid" to="/members">
             查看队员库

@@ -9,10 +9,23 @@ export function Layout({ children }: PropsWithChildren) {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="topbar-kicker">GU ACM Data</p>
-          <h1>广州大学 ACM 校队队员库</h1>
+        <span className="topbar-glow topbar-glow-left" aria-hidden />
+        <span className="topbar-glow topbar-glow-right" aria-hidden />
+
+        <div className="topbar-head">
+          <div className="topbar-brand">
+            <p className="topbar-kicker">GU ACM Data</p>
+            <h1>广州大学 ACM 校队队员库</h1>
+            <p className="topbar-subtitle">二次元风战绩档案 · 可爱但能打</p>
+          </div>
+
+          <div className="topbar-status" aria-label="站点状态">
+            <span className="badge-chip badge-chip-live">Live</span>
+            <span className="badge-chip">ACM Team</span>
+            <span className="badge-chip badge-chip-anime">Anime UI</span>
+          </div>
         </div>
+
         <nav className="topbar-nav">
           <NavLink to="/" className={navClassName}>
             首页
@@ -36,6 +49,7 @@ export function Layout({ children }: PropsWithChildren) {
 
       <footer className="footer">
         <p>GU ACMerDB</p>
+        <p className="footer-subtle">二次元主题版 · 数据持续更新中</p>
       </footer>
     </div>
   )
