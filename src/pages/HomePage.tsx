@@ -7,6 +7,16 @@ import { fetchHomeStats, peekHomeStats } from '../lib/api'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { HomeStats } from '../types'
 
+function toCompetitionGroupKey(input: HomeStats['latestCompetitions'][number]) {
+  return [
+    input.title,
+    input.category,
+    String(input.seasonYear),
+    input.happenedAt ?? '',
+    input.contestLevel ?? '',
+  ].join('|')
+}
+
 export function HomePage() {
   const cachedStats = peekHomeStats()
   const [stats, setStats] = useState<HomeStats | null>(() => cachedStats)
@@ -67,6 +77,22 @@ export function HomePage() {
     ]
   }, [stats])
 
+  const latestCompetitionPreviews = useMemo(() => {
+    if (!stats) {
+      return []
+    }
+
+    const groupMap = new Map<string, HomeStats['latestCompetitions'][number]>()
+    for (const item of stats.latestCompetitions) {
+      const key = toCompetitionGroupKey(item)
+      if (!groupMap.has(key)) {
+        groupMap.set(key, item)
+      }
+    }
+
+    return [...groupMap.values()]
+  }, [stats])
+
   return (
     <div className="stack">
       <section className="hero-card">
@@ -104,7 +130,7 @@ export function HomePage() {
             <div className="panel-header">
               <h3>最近赛事记录</h3>
             </div>
-            {stats.latestCompetitions.length === 0 ? (
+            {latestCompetitionPreviews.length === 0 ? (
               <EmptyState title="暂无赛事记录" description="请先在管理页面录入赛事。" />
             ) : (
               <div className="table-scroll">
@@ -118,7 +144,7 @@ export function HomePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {stats.latestCompetitions.map((competition) => (
+                    {latestCompetitionPreviews.map((competition) => (
                       <tr key={competition.id}>
                         <td>{competition.happenedAt ?? '-'}</td>
                         <td>

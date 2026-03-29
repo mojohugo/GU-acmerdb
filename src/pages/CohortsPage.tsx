@@ -22,6 +22,16 @@ function toSearchText(competition: Competition) {
     .toLowerCase()
 }
 
+function toCompetitionGroupKey(competition: Competition) {
+  return [
+    competition.title,
+    competition.category,
+    String(competition.seasonYear),
+    competition.happenedAt ?? '',
+    competition.contestLevel ?? '',
+  ].join('|')
+}
+
 function toCompetitionTime(competition: Competition) {
   const fromDate = competition.happenedAt ? Date.parse(competition.happenedAt) : NaN
   if (Number.isFinite(fromDate)) {
@@ -127,8 +137,7 @@ export function CohortsPage() {
   const sortedCompetitions = useMemo(() => {
     const normalizedKeyword = debouncedKeyword.trim().toLowerCase()
 
-    return competitions
-      .filter((competition) => {
+    const filtered = competitions.filter((competition) => {
         if (categoryFilter !== 'all' && competition.category !== categoryFilter) {
           return false
         }
@@ -139,7 +148,16 @@ export function CohortsPage() {
 
         return toSearchText(competition).includes(normalizedKeyword)
       })
-      .toSorted(sortByTimeDesc)
+
+    const groupMap = new Map<string, Competition>()
+    for (const item of filtered) {
+      const groupKey = toCompetitionGroupKey(item)
+      if (!groupMap.has(groupKey)) {
+        groupMap.set(groupKey, item)
+      }
+    }
+
+    return [...groupMap.values()].toSorted(sortByTimeDesc)
   }, [categoryFilter, competitions, debouncedKeyword])
 
   const hasFilters = categoryFilter !== 'all' || keyword.trim().length > 0

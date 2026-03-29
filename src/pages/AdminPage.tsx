@@ -5,7 +5,6 @@ import { ContestTypeTag } from '../components/ContestTypeTag'
 import {
   createCompetition,
   createMember,
-  deleteCompetition,
   deleteMember,
   fetchCohortOverview,
   fetchMembers,
@@ -14,7 +13,6 @@ import {
   peekMembers,
   signInAsAdmin,
   signOutAdmin,
-  updateCompetition,
   updateMember,
 } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
@@ -40,9 +38,6 @@ type CompetitionForm = {
   category: ContestCategory
   seasonYear: string
   contestLevel: string
-  teamName: string
-  rank: string
-  award: string
   happenedAt: string
   remark: string
 }
@@ -60,9 +55,6 @@ const initialCompetitionForm: CompetitionForm = {
   category: 'freshman',
   seasonYear: '',
   contestLevel: '',
-  teamName: '',
-  rank: '',
-  award: '',
   happenedAt: '',
   remark: '',
 }
@@ -81,22 +73,10 @@ function toMemberDraft(form: MemberForm): MemberDraft {
   }
 }
 
-function toCompetitionDraft(
-  form: CompetitionForm,
-  memberIds: string[],
-): CompetitionDraft {
+function toCompetitionDraft(form: CompetitionForm): CompetitionDraft {
   const seasonYear = Number(form.seasonYear)
   if (!form.title.trim() || !Number.isFinite(seasonYear) || seasonYear <= 0) {
     throw new Error('请填写正确的赛事名称和赛季年份')
-  }
-
-  const uniqueMemberIds = [...new Set(memberIds)]
-  if (uniqueMemberIds.length === 0) {
-    throw new Error('请至少关联 1 名队员')
-  }
-
-  if (!form.award.trim() && !form.rank.trim()) {
-    throw new Error('请至少填写奖项或名次')
   }
 
   return {
@@ -104,12 +84,9 @@ function toCompetitionDraft(
     category: form.category,
     seasonYear,
     contestLevel: form.contestLevel.trim() || undefined,
-    teamName: form.teamName.trim() || undefined,
-    award: form.award.trim() || undefined,
-    rank: form.rank.trim() || undefined,
     happenedAt: form.happenedAt || undefined,
     remark: form.remark.trim() || undefined,
-    memberIds: uniqueMemberIds,
+    memberIds: [],
   }
 }
 
@@ -134,36 +111,56 @@ export function AdminPage() {
   const [competitionForm, setCompetitionForm] = useState<CompetitionForm>(
     initialCompetitionForm,
   )
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
 
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editMemberForm, setEditMemberForm] = useState<MemberForm>(initialMemberForm)
 
-  const [editingCompetitionId, setEditingCompetitionId] = useState<string | null>(null)
-  const [editCompetitionForm, setEditCompetitionForm] =
-    useState<CompetitionForm>(initialCompetitionForm)
-  const [editCompetitionMemberIds, setEditCompetitionMemberIds] = useState<string[]>([])
+  const competitionGroups = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; title: string; category: ContestCategory; happenedAt: string | null; contestLevel: string | null; standingsCount: number }
+    >()
 
-  const memberOptions = useMemo(
-    () => members.map((m) => ({ id: m.id, label: `${m.name} (${m.cohortYear}级)` })),
-    [members],
-  )
+    for (const item of competitions) {
+      const groupKey = [
+        item.title,
+        item.category,
+        String(item.seasonYear),
+        item.happenedAt ?? '',
+        item.contestLevel ?? '',
+      ].join('|')
+
+      const hasStanding =
+        Boolean(item.rank?.trim()) ||
+        Boolean(item.award?.trim()) ||
+        Boolean(item.teamName?.trim()) ||
+        item.participants.length > 0
+
+      const existed = map.get(groupKey)
+      if (!existed) {
+        map.set(groupKey, {
+          id: item.id,
+          title: item.title,
+          category: item.category,
+          happenedAt: item.happenedAt,
+          contestLevel: item.contestLevel,
+          standingsCount: hasStanding ? 1 : 0,
+        })
+      } else if (hasStanding) {
+        existed.standingsCount += 1
+      }
+    }
+
+    return [...map.values()].sort((a, b) => {
+      const aTime = a.happenedAt ? Date.parse(a.happenedAt) : 0
+      const bTime = b.happenedAt ? Date.parse(b.happenedAt) : 0
+      return bTime - aTime
+    })
+  }, [competitions])
 
   function clearMsg() {
     setError(null)
     setSuccess(null)
-  }
-
-  function toggleSelectedMember(
-    current: string[],
-    memberId: string,
-    checked: boolean,
-  ) {
-    if (checked) {
-      return current.includes(memberId) ? current : [...current, memberId]
-    }
-
-    return current.filter((id) => id !== memberId)
   }
 
   async function loadData() {
@@ -246,7 +243,6 @@ export function AdminPage() {
       setMembers([])
       setCompetitions([])
       setEditingMemberId(null)
-      setEditingCompetitionId(null)
       setSuccess('已退出登录')
     } catch (e) {
       setError(e instanceof Error ? e.message : '退出失败')
@@ -276,13 +272,12 @@ export function AdminPage() {
     clearMsg()
     setSubmitting(true)
     try {
-      await createCompetition(toCompetitionDraft(competitionForm, selectedMemberIds))
+      await createCompetition(toCompetitionDraft(competitionForm))
       setCompetitionForm(initialCompetitionForm)
-      setSelectedMemberIds([])
       await loadData()
-      setSuccess('比赛战绩创建成功')
+      setSuccess('比赛创建成功')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '创建比赛战绩失败')
+      setError(e instanceof Error ? e.message : '创建比赛失败')
     } finally {
       setSubmitting(false)
     }
@@ -305,26 +300,6 @@ export function AdminPage() {
     }
   }
 
-  async function submitUpdateCompetition(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!editingCompetitionId) return
-    clearMsg()
-    setSubmitting(true)
-    try {
-      await updateCompetition(
-        editingCompetitionId,
-        toCompetitionDraft(editCompetitionForm, editCompetitionMemberIds),
-      )
-      setEditingCompetitionId(null)
-      await loadData()
-      setSuccess('比赛战绩更新成功')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '更新比赛战绩失败')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   async function onDeleteMember(member: Member) {
     if (!window.confirm(`确定删除队员「${member.name}」吗？`)) return
     clearMsg()
@@ -336,22 +311,6 @@ export function AdminPage() {
       setSuccess('队员删除成功')
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除队员失败')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function onDeleteCompetition(competition: Competition) {
-    if (!window.confirm(`确定删除比赛战绩「${competition.title}」吗？`)) return
-    clearMsg()
-    setSubmitting(true)
-    try {
-      await deleteCompetition(competition.id)
-      if (editingCompetitionId === competition.id) setEditingCompetitionId(null)
-      await loadData()
-      setSuccess('比赛战绩删除成功')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '删除比赛战绩失败')
     } finally {
       setSubmitting(false)
     }
@@ -475,9 +434,9 @@ export function AdminPage() {
 
           <section className="panel">
             <div className="panel-header">
-              <h3>新增比赛战绩</h3>
+              <h3>新增比赛</h3>
               <p>
-                说明：同一场比赛可录入多条战绩（不同队伍/奖项），前台比赛详情页会自动聚合展示。
+                先创建比赛基础信息，再进入比赛详情页新增或编辑该比赛下的战绩。
               </p>
             </div>
             <form className="form-grid" onSubmit={submitCreateCompetition}>
@@ -529,34 +488,6 @@ export function AdminPage() {
                 />
               </label>
               <label>
-                队伍名称
-                <input
-                  value={competitionForm.teamName}
-                  onChange={(e) =>
-                    setCompetitionForm((p) => ({ ...p, teamName: e.target.value }))
-                  }
-                  placeholder="如：GUACM-1"
-                />
-              </label>
-              <label>
-                名次
-                <input
-                  value={competitionForm.rank}
-                  onChange={(e) =>
-                    setCompetitionForm((p) => ({ ...p, rank: e.target.value }))
-                  }
-                  placeholder="如：42 / 银牌第 18"
-                />
-              </label>
-              <label>
-                奖项（与名次至少填一项）
-                <input
-                  value={competitionForm.award}
-                  onChange={(e) => setCompetitionForm((p) => ({ ...p, award: e.target.value }))}
-                  placeholder="如：金奖 / 银奖 / 一等奖"
-                />
-              </label>
-              <label>
                 日期
                 <input
                   type="date"
@@ -574,35 +505,8 @@ export function AdminPage() {
                   onChange={(e) => setCompetitionForm((p) => ({ ...p, remark: e.target.value }))}
                 />
               </label>
-              <div className="full-width member-picker">
-                <p>关联队员（至少 1 人）</p>
-                {memberOptions.length === 0 ? (
-                  <p className="status-hint">暂无队员，请先在上方创建队员。</p>
-                ) : (
-                  <div className="member-picker-grid">
-                    {memberOptions.map((member) => (
-                      <label key={member.id} className="member-picker-item">
-                        <input
-                          type="checkbox"
-                          checked={selectedMemberIds.includes(member.id)}
-                          onChange={(event) =>
-                            setSelectedMemberIds((current) =>
-                              toggleSelectedMember(
-                                current,
-                                member.id,
-                                event.target.checked,
-                              ),
-                            )
-                          }
-                        />
-                        <span>{member.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
               <button className="btn btn-solid" disabled={submitting}>
-                {submitting ? '提交中...' : '创建比赛战绩'}
+                {submitting ? '提交中...' : '创建比赛'}
               </button>
             </form>
           </section>
@@ -722,7 +626,8 @@ export function AdminPage() {
 
           <section className="panel">
             <div className="panel-header">
-              <h3>比赛战绩列表 / 编辑</h3>
+              <h3>比赛列表</h3>
+              <p>点击“管理战绩”进入比赛详情页，再新增/编辑该比赛下的队伍和奖项。</p>
             </div>
             <div className="table-scroll">
               <table>
@@ -730,69 +635,30 @@ export function AdminPage() {
                   <tr>
                     <th>赛事</th>
                     <th>分类</th>
-                    <th>赛季</th>
-                    <th>队伍/名次</th>
-                    <th>奖项</th>
-                    <th>参赛队员</th>
+                    <th>日期</th>
+                    <th>比赛级别</th>
+                    <th>战绩条数</th>
                     <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {competitions.map((competition) => (
+                  {competitionGroups.map((competition) => (
                     <tr key={competition.id}>
                       <td>{competition.title}</td>
                       <td>
                         <ContestTypeTag category={competition.category} />
                       </td>
-                      <td>{competition.seasonYear}</td>
-                      <td>
-                        {competition.teamName ?? '-'}
-                        {competition.rank ? ` / ${competition.rank}` : ''}
-                      </td>
-                      <td>{competition.award ?? '-'}</td>
-                      <td>
-                        {competition.participants.length
-                          ? competition.participants.map((m) => m.name).join('、')
-                          : '-'}
-                      </td>
+                      <td>{competition.happenedAt ?? '-'}</td>
+                      <td>{competition.contestLevel ?? '-'}</td>
+                      <td>{competition.standingsCount}</td>
                       <td>
                         <div className="action-row">
                           <Link
                             to={`/competition/${competition.id}`}
                             className="btn btn-small"
                           >
-                            查看
+                            管理战绩
                           </Link>
-                          <button
-                            type="button"
-                            className="btn btn-small"
-                            onClick={() => {
-                              setEditingCompetitionId(competition.id)
-                              setEditCompetitionForm({
-                                title: competition.title,
-                                category: competition.category,
-                                seasonYear: String(competition.seasonYear),
-                                contestLevel: competition.contestLevel ?? '',
-                                teamName: competition.teamName ?? '',
-                                rank: competition.rank ?? '',
-                                award: competition.award ?? '',
-                                happenedAt: competition.happenedAt ?? '',
-                                remark: competition.remark ?? '',
-                              })
-                              setEditCompetitionMemberIds(
-                                competition.participants.map((member) => member.id),
-                              )
-                            }}
-                          >
-                            编辑
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-small btn-danger"
-                            onClick={() => void onDeleteCompetition(competition)}
-                          >
-                            删除
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -801,152 +667,8 @@ export function AdminPage() {
               </table>
             </div>
 
-            {editingCompetitionId ? (
-              <form className="form-grid inline-wrap" onSubmit={submitUpdateCompetition}>
-                <h4 className="full-width">编辑比赛战绩</h4>
-                <label>
-                  赛事名称
-                  <input
-                    value={editCompetitionForm.title}
-                    onChange={(e) =>
-                      setEditCompetitionForm((p) => ({ ...p, title: e.target.value }))
-                    }
-                    required
-                  />
-                </label>
-                <label>
-                  赛事分类
-                  <select
-                    value={editCompetitionForm.category}
-                    onChange={(e) =>
-                      setEditCompetitionForm((p) => ({
-                        ...p,
-                        category: e.target.value as ContestCategory,
-                      }))
-                    }
-                  >
-                    {CONTEST_TYPE_ORDER.map((type) => (
-                      <option key={type} value={type}>
-                        {CONTEST_TYPE_LABELS[type]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  赛季年份
-                  <input
-                    type="number"
-                    value={editCompetitionForm.seasonYear}
-                    onChange={(e) =>
-                      setEditCompetitionForm((p) => ({ ...p, seasonYear: e.target.value }))
-                    }
-                    required
-                  />
-                </label>
-                <label>
-                  比赛级别
-                  <input
-                    value={editCompetitionForm.contestLevel}
-                    onChange={(e) =>
-                      setEditCompetitionForm((p) => ({ ...p, contestLevel: e.target.value }))
-                    }
-                    placeholder="如：国赛 / 省赛 / 校赛"
-                  />
-                </label>
-                <label>
-                  队伍名称
-                  <input
-                    value={editCompetitionForm.teamName}
-                    onChange={(e) =>
-                      setEditCompetitionForm((p) => ({ ...p, teamName: e.target.value }))
-                    }
-                    placeholder="如：GUACM-1"
-                  />
-                </label>
-                <label>
-                  名次
-                  <input
-                    value={editCompetitionForm.rank}
-                    onChange={(e) =>
-                      setEditCompetitionForm((p) => ({ ...p, rank: e.target.value }))
-                    }
-                    placeholder="如：42 / 银牌第 18"
-                  />
-                </label>
-                <label>
-                  奖项（与名次至少填一项）
-                  <input
-                    value={editCompetitionForm.award}
-                    onChange={(e) =>
-                      setEditCompetitionForm((p) => ({ ...p, award: e.target.value }))
-                    }
-                    placeholder="如：金奖 / 银奖 / 一等奖"
-                  />
-                </label>
-                <label>
-                  日期
-                  <input
-                    type="date"
-                    value={editCompetitionForm.happenedAt}
-                    onChange={(e) =>
-                      setEditCompetitionForm((p) => ({ ...p, happenedAt: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="full-width">
-                  备注
-                  <textarea
-                    rows={2}
-                    value={editCompetitionForm.remark}
-                    onChange={(e) =>
-                      setEditCompetitionForm((p) => ({ ...p, remark: e.target.value }))
-                    }
-                  />
-                </label>
-                <div className="full-width member-picker">
-                  <p>关联队员（至少 1 人）</p>
-                  {memberOptions.length === 0 ? (
-                    <p className="status-hint">暂无队员，请先在上方创建队员。</p>
-                  ) : (
-                    <div className="member-picker-grid">
-                      {memberOptions.map((member) => (
-                        <label key={member.id} className="member-picker-item">
-                          <input
-                            type="checkbox"
-                            checked={editCompetitionMemberIds.includes(member.id)}
-                            onChange={(event) =>
-                              setEditCompetitionMemberIds((current) =>
-                                toggleSelectedMember(
-                                  current,
-                                  member.id,
-                                  event.target.checked,
-                                ),
-                              )
-                            }
-                          />
-                          <span>{member.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="action-row full-width">
-                  <button className="btn btn-solid" disabled={submitting}>
-                    更新比赛战绩
-                  </button>
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() => setEditingCompetitionId(null)}
-                  >
-                    取消
-                  </button>
-                </div>
-              </form>
-            ) : null}
-
             <p className="todo-note">
-              TODO: 后台待补充批量导入、同一比赛多队伍批量录入、图片上传、证书附件。
+              TODO: 后台待补充批量导入、同一比赛多队伍批量录入、比赛主档案与战绩拆表、图片上传、证书附件。
             </p>
           </section>
         </>

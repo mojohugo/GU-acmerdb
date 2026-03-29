@@ -313,6 +313,15 @@ function sortCompetitionStanding(a: Competition, b: Competition): number {
   return a.title.localeCompare(b.title, 'zh-Hans-CN')
 }
 
+function hasStandingContent(item: Competition): boolean {
+  return (
+    Boolean(item.rank?.trim()) ||
+    Boolean(item.award?.trim()) ||
+    Boolean(item.teamName?.trim()) ||
+    item.participants.length > 0
+  )
+}
+
 async function enrichCompetitionsWithParticipants(
   client: ReturnType<typeof getSupabaseClient>,
   rows: Record<string, unknown>[],
@@ -663,12 +672,14 @@ export async function fetchCompetitionDetail(
         rowsWithFallback,
       )).sort(sortCompetitionStanding)
 
+      const standingsOnly = standings.filter((item) => hasStandingContent(item))
+
       const focusWithParticipants =
         standings.find((item) => item.id === competitionId) ?? focus
 
       return {
         focus: focusWithParticipants,
-        standings,
+        standings: standingsOnly,
       }
     },
   })
@@ -720,7 +731,7 @@ export async function fetchHomeStats(): Promise<HomeStats> {
             .select(competitionFields)
             .order('happened_at', { ascending: false })
             .order('season_year', { ascending: false })
-            .limit(8),
+            .limit(20),
         ])
 
       if (membersRes.error) {
