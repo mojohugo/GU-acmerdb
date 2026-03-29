@@ -899,6 +899,105 @@ tbody tr:last-child td {
   gap: 10px;
 }
 
+.competition-photo-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.competition-photo-card {
+  border: 1px solid rgba(104, 121, 167, 0.24);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  display: grid;
+  gap: 8px;
+}
+
+.competition-photo-link {
+  display: block;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid rgba(104, 121, 167, 0.2);
+  aspect-ratio: 4 / 3;
+  background: rgba(234, 241, 255, 0.72);
+}
+
+.competition-photo-link img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.competition-photo-meta {
+  display: grid;
+  gap: 3px;
+}
+
+.media-upload-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.attachment-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.attachment-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.award-stats-grid {
+  margin-bottom: 12px;
+}
+
+.award-analysis-grid {
+  margin-bottom: 12px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.award-analysis-card {
+  gap: 10px;
+}
+
+.simple-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+}
+
+.simple-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.simple-list li strong {
+  color: #344b8d;
+}
+
 .inline-wrap {
   margin-top: 12px;
 }

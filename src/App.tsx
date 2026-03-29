@@ -22,6 +22,11 @@ const loadCohortsPage = async () => {
   return { default: module.CohortsPage }
 }
 
+const loadAwardsPage = async () => {
+  const module = await import('./pages/AwardsPage')
+  return { default: module.AwardsPage }
+}
+
 const loadCompetitionDetailPage = async () => {
   const module = await import('./pages/CompetitionDetailPage')
   return { default: module.CompetitionDetailPage }
@@ -46,6 +51,7 @@ const HomePage = lazy(loadHomePage)
 const MembersPage = lazy(loadMembersPage)
 const MemberDetailPage = lazy(loadMemberDetailPage)
 const CohortsPage = lazy(loadCohortsPage)
+const AwardsPage = lazy(loadAwardsPage)
 const CompetitionDetailPage = lazy(loadCompetitionDetailPage)
 const AdminPage = lazy(loadAdminPage)
 const AboutPage = lazy(loadAboutPage)
@@ -66,6 +72,7 @@ function App() {
           <Route path="/members" element={<MembersPage />} />
           <Route path="/member/:memberId" element={<MemberDetailPage />} />
           <Route path="/cohorts" element={<CohortsPage />} />
+          <Route path="/awards" element={<AwardsPage />} />
           <Route path="/competition/:competitionId" element={<CompetitionDetailPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/about" element={<AboutPage />} />

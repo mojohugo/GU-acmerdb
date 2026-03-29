@@ -12,6 +12,8 @@ import type {
   Competition,
   CompetitionDetail,
   CompetitionDraft,
+  CompetitionMedia,
+  CompetitionMediaType,
   ContestCategory,
   HomeStats,
   Member,
@@ -56,6 +58,20 @@ const competitionFields = [
   'rank',
   'team_name',
   'happened_at',
+  'remark',
+  'created_at',
+].join(',')
+
+const competitionMediaFields = [
+  'id',
+  'competition_id',
+  'standing_competition_id',
+  'media_type',
+  'file_name',
+  'object_key',
+  'mime_type',
+  'file_size',
+  'url',
   'remark',
   'created_at',
 ].join(',')
@@ -182,7 +198,16 @@ function asString(value: unknown): string | null {
 }
 
 function asNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
 }
 
 function asBoolean(value: unknown): boolean {
@@ -241,6 +266,39 @@ function mapCompetition(
     createdAt: asString(row.created_at),
     participants,
   }
+}
+
+function asMediaType(value: unknown): CompetitionMediaType {
+  return value === 'certificate' || value === 'event_photo' ? value : 'event_photo'
+}
+
+function mapCompetitionMedia(row: Record<string, unknown>): CompetitionMedia {
+  return {
+    id: asString(row.id) ?? '',
+    competitionId: asString(row.competition_id) ?? '',
+    standingCompetitionId: asString(row.standing_competition_id),
+    mediaType: asMediaType(row.media_type),
+    fileName: asString(row.file_name) ?? '未命名文件',
+    objectKey: asString(row.object_key) ?? '',
+    mimeType: asString(row.mime_type),
+    fileSize: asNumber(row.file_size),
+    url: asString(row.url) ?? '',
+    remark: asString(row.remark),
+    createdAt: asString(row.created_at),
+  }
+}
+
+function isMissingRelationError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const maybeCode =
+    'code' in error
+      ? (error as { code?: unknown }).code
+      : null
+
+  return maybeCode === '42P01'
 }
 
 function sortCompetitionDesc(a: Competition, b: Competition): number {
@@ -674,12 +732,40 @@ export async function fetchCompetitionDetail(
 
       const standingsOnly = standings.filter((item) => hasStandingContent(item))
 
+      const relatedCompetitionIds = [
+        ...new Set(
+          rowsWithFallback
+            .map((row) => asString(row.id))
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ]
+
+      let media: CompetitionMedia[] = []
+      if (relatedCompetitionIds.length > 0) {
+        const { data: mediaRows, error: mediaError } = await client
+          .from('competition_media')
+          .select(competitionMediaFields)
+          .in('competition_id', relatedCompetitionIds)
+          .order('created_at', { ascending: false })
+
+        if (mediaError) {
+          if (!isMissingRelationError(mediaError)) {
+            throw mediaError
+          }
+        } else {
+          media = (mediaRows ?? []).map((row) =>
+            mapCompetitionMedia(row as unknown as Record<string, unknown>),
+          )
+        }
+      }
+
       const focusWithParticipants =
         standings.find((item) => item.id === competitionId) ?? focus
 
       return {
         focus: focusWithParticipants,
         standings: standingsOnly,
+        media,
       }
     },
   })
@@ -1026,6 +1112,184 @@ export async function deleteCompetition(competitionId: string) {
     .eq('id', competitionId)
 
   if (error) {
+    throw error
+  }
+
+  invalidateCompetitionRelatedCache()
+}
+
+type CreateCompetitionMediaInput = {
+  competitionId: string
+  mediaType: CompetitionMediaType
+  fileName: string
+  objectKey: string
+  url: string
+  mimeType?: string
+  fileSize?: number
+  remark?: string
+  standingCompetitionId?: string
+}
+
+type UploadCompetitionMediaInput = {
+  competitionId: string
+  mediaType: CompetitionMediaType
+  file: File
+  standingCompetitionId?: string
+  remark?: string
+}
+
+type SignedOssUploadResponse = {
+  uploadUrl: string
+  publicUrl: string
+  objectKey: string
+  fileName: string
+  contentType: string
+  expiresAt: string
+}
+
+function normalizeContentType(contentType: string | undefined) {
+  const trimmed = contentType?.trim()
+  return trimmed && trimmed.length > 0 ? trimmed : 'application/octet-stream'
+}
+
+function normalizeFileName(rawName: string) {
+  const trimmed = rawName.trim()
+  if (trimmed.length === 0) {
+    return 'upload.bin'
+  }
+
+  return trimmed.slice(-120)
+}
+
+function toSafeFileSize(size: number | undefined) {
+  if (!Number.isFinite(size)) {
+    return undefined
+  }
+
+  const rounded = Math.floor(size as number)
+  return rounded >= 0 ? rounded : undefined
+}
+
+export async function createCompetitionMedia(
+  input: CreateCompetitionMediaInput,
+): Promise<CompetitionMedia> {
+  const client = getSupabaseClient()
+
+  const payload = {
+    competition_id: input.competitionId,
+    standing_competition_id: input.standingCompetitionId ?? null,
+    media_type: input.mediaType,
+    file_name: normalizeFileName(input.fileName),
+    object_key: input.objectKey.trim(),
+    mime_type: normalizeContentType(input.mimeType),
+    file_size: toSafeFileSize(input.fileSize) ?? null,
+    url: input.url.trim(),
+    remark: input.remark?.trim() || null,
+  }
+
+  const { data, error } = await client
+    .from('competition_media')
+    .insert(payload)
+    .select(competitionMediaFields)
+    .single()
+
+  if (error) {
+    if (isMissingRelationError(error)) {
+      throw new Error('数据库缺少 competition_media 表，请先执行最新版 supabase/schema.sql')
+    }
+    throw error
+  }
+
+  invalidateCompetitionRelatedCache()
+  return mapCompetitionMedia(data as unknown as Record<string, unknown>)
+}
+
+export async function uploadCompetitionMedia(
+  input: UploadCompetitionMediaInput,
+): Promise<CompetitionMedia> {
+  if (!input.file) {
+    throw new Error('请选择要上传的文件')
+  }
+
+  const client = getSupabaseClient()
+
+  const { data: sessionData, error: sessionError } = await client.auth.getSession()
+  if (sessionError) {
+    throw sessionError
+  }
+
+  const accessToken = sessionData.session?.access_token
+  if (!accessToken) {
+    throw new Error('请先以管理员账号登录后再上传附件')
+  }
+
+  const normalizedFileName = normalizeFileName(input.file.name)
+  const contentType = normalizeContentType(input.file.type)
+  const fileSize = toSafeFileSize(input.file.size) ?? 0
+
+  const { data: signedData, error: signError } =
+    await client.functions.invoke<SignedOssUploadResponse>('oss-sign-upload', {
+      body: {
+        competitionId: input.competitionId,
+        mediaType: input.mediaType,
+        standingCompetitionId: input.standingCompetitionId ?? null,
+        fileName: normalizedFileName,
+        contentType,
+        fileSize,
+      },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+  if (signError) {
+    const message = signError.message || ''
+    if (/404|not found|Failed to send/i.test(message)) {
+      throw new Error('未找到 oss-sign-upload 函数，请先在 Supabase 部署该函数')
+    }
+    throw signError
+  }
+
+  if (!signedData?.uploadUrl || !signedData.publicUrl || !signedData.objectKey) {
+    throw new Error('上传签名服务返回异常，请检查 oss-sign-upload 函数配置')
+  }
+
+  const uploadResponse = await fetch(signedData.uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': signedData.contentType || contentType,
+    },
+    body: input.file,
+  })
+
+  if (!uploadResponse.ok) {
+    throw new Error(`上传到 OSS 失败（HTTP ${uploadResponse.status}）`)
+  }
+
+  return createCompetitionMedia({
+    competitionId: input.competitionId,
+    mediaType: input.mediaType,
+    standingCompetitionId: input.standingCompetitionId,
+    fileName: signedData.fileName || normalizedFileName,
+    objectKey: signedData.objectKey,
+    url: signedData.publicUrl,
+    mimeType: signedData.contentType || contentType,
+    fileSize,
+    remark: input.remark,
+  })
+}
+
+export async function deleteCompetitionMedia(mediaId: string) {
+  const client = getSupabaseClient()
+  const { error } = await client
+    .from('competition_media')
+    .delete()
+    .eq('id', mediaId)
+
+  if (error) {
+    if (isMissingRelationError(error)) {
+      throw new Error('数据库缺少 competition_media 表，请先执行最新版 supabase/schema.sql')
+    }
     throw error
   }
 

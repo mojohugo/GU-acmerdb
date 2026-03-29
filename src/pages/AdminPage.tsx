@@ -862,7 +862,7 @@ export function AdminPage() {
             ) : null}
 
             <p className="todo-note">
-              TODO: 后台待补充批量导入、批量录入模板（复制上一条/粘贴多行）、比赛主档案与战绩拆表、图片上传、证书附件。
+              TODO: 后台待补充批量导入、批量录入模板（复制上一条/粘贴多行）、比赛主档案与战绩拆表、附件上传进度与 OSS 文件回收。
             </p>
           </section>
         </>

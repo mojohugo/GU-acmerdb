@@ -8,6 +8,8 @@
   | 'ladder'
   | 'other'
 
+export type CompetitionMediaType = 'certificate' | 'event_photo'
+
 export interface Member {
   id: string
   name: string
@@ -43,6 +45,20 @@ export interface Competition {
   participants: MemberMini[]
 }
 
+export interface CompetitionMedia {
+  id: string
+  competitionId: string
+  standingCompetitionId: string | null
+  mediaType: CompetitionMediaType
+  fileName: string
+  objectKey: string
+  mimeType: string | null
+  fileSize: number | null
+  url: string
+  remark: string | null
+  createdAt: string | null
+}
+
 export interface MemberDetail extends Member {
   competitions: Competition[]
 }
@@ -50,6 +66,7 @@ export interface MemberDetail extends Member {
 export interface CompetitionDetail {
   focus: Competition
   standings: Competition[]
+  media: CompetitionMedia[]
 }
 
 export interface HomeStats {

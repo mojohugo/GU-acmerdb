@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react'
-import { CalendarClock, House, Info, ShieldCheck, Users } from 'lucide-react'
+import { BarChart3, CalendarClock, House, Info, ShieldCheck, Users } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 function navClassName({ isActive }: { isActive: boolean }) {
@@ -39,6 +39,10 @@ export function Layout({ children }: PropsWithChildren) {
           <NavLink to="/cohorts" className={navClassName}>
             <CalendarClock size={14} aria-hidden="true" className="nav-link-icon" />
             赛事时间线
+          </NavLink>
+          <NavLink to="/awards" className={navClassName}>
+            <BarChart3 size={14} aria-hidden="true" className="nav-link-icon" />
+            获奖查询
           </NavLink>
           <NavLink to="/admin" className={navClassName}>
             <ShieldCheck size={14} aria-hidden="true" className="nav-link-icon" />

@@ -114,6 +114,9 @@ export function HomePage() {
           <Link className="btn" to="/cohorts">
             查看赛事时间线
           </Link>
+          <Link className="btn" to="/awards">
+            获奖查询与统计
+          </Link>
         </div>
       </section>
 

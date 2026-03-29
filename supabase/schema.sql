@@ -47,6 +47,20 @@ create table if not exists public.competition_members (
   primary key (competition_id, member_id)
 );
 
+create table if not exists public.competition_media (
+  id uuid primary key default gen_random_uuid(),
+  competition_id uuid not null references public.competitions (id) on delete cascade,
+  standing_competition_id uuid references public.competitions (id) on delete cascade,
+  media_type text not null check (media_type in ('certificate', 'event_photo')),
+  file_name text not null,
+  object_key text not null unique,
+  mime_type text,
+  file_size bigint,
+  url text not null,
+  remark text,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.admin_users (
   user_id uuid primary key references auth.users (id) on delete cascade,
   display_name text,
@@ -57,7 +71,14 @@ create table if not exists public.admin_users (
 alter table public.members enable row level security;
 alter table public.competitions enable row level security;
 alter table public.competition_members enable row level security;
+alter table public.competition_media enable row level security;
 alter table public.admin_users enable row level security;
+
+create index if not exists idx_competition_media_competition
+  on public.competition_media (competition_id, media_type, created_at desc);
+
+create index if not exists idx_competition_media_standing
+  on public.competition_media (standing_competition_id, media_type, created_at desc);
 
 create or replace function public.is_admin(uid uuid)
 returns boolean
@@ -86,6 +107,10 @@ drop policy if exists "competition_members_read_public" on public.competition_me
 create policy "competition_members_read_public" on public.competition_members
 for select using (true);
 
+drop policy if exists "competition_media_read_public" on public.competition_media;
+create policy "competition_media_read_public" on public.competition_media
+for select using (true);
+
 drop policy if exists "admin_users_read_self" on public.admin_users;
 create policy "admin_users_read_self" on public.admin_users
 for select using (auth.uid() = user_id);
@@ -105,6 +130,12 @@ with check (public.is_admin(auth.uid()));
 
 drop policy if exists "competition_members_write_admin" on public.competition_members;
 create policy "competition_members_write_admin" on public.competition_members
+for all
+using (public.is_admin(auth.uid()))
+with check (public.is_admin(auth.uid()));
+
+drop policy if exists "competition_media_write_admin" on public.competition_media;
+create policy "competition_media_write_admin" on public.competition_media
 for all
 using (public.is_admin(auth.uid()))
 with check (public.is_admin(auth.uid()));

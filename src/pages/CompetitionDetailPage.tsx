@@ -1,5 +1,5 @@
-import type { FormEvent } from 'react'
-import { useEffect, useState } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
@@ -7,15 +7,23 @@ import { AwardBadge, RankBadge } from '../components/ResultBadge'
 import {
   createCompetition,
   deleteCompetition,
+  deleteCompetitionMedia,
   fetchCompetitionDetail,
   fetchMembers,
   getAdminSessionWithProfile,
   peekCompetitionDetail,
   peekMembers,
   updateCompetition,
+  uploadCompetitionMedia,
 } from '../lib/api'
 import { isSupabaseConfigured } from '../lib/supabase'
-import type { Competition, CompetitionDetail, CompetitionDraft, Member } from '../types'
+import type {
+  Competition,
+  CompetitionDetail,
+  CompetitionDraft,
+  CompetitionMedia,
+  Member,
+} from '../types'
 
 type StandingForm = {
   teamName: string
@@ -24,6 +32,8 @@ type StandingForm = {
   remark: string
   memberIds: string[]
 }
+
+const MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024
 
 function createEmptyStandingForm(): StandingForm {
   return {
@@ -78,6 +88,33 @@ function hasStandingInput(form: StandingForm) {
   )
 }
 
+function formatFileSize(size: number | null) {
+  if (!Number.isFinite(size) || (size as number) <= 0) {
+    return '-'
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = size as number
+  let unitIndex = 0
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+
+  const formatted = value >= 100 ? value.toFixed(0) : value.toFixed(1)
+  return `${formatted}${units[unitIndex]}`
+}
+
+function isCertificateFile(file: File) {
+  const fileType = file.type.toLowerCase()
+  return fileType.startsWith('image/') || fileType === 'application/pdf'
+}
+
+function isPhotoFile(file: File) {
+  return file.type.toLowerCase().startsWith('image/')
+}
+
 export function CompetitionDetailPage() {
   const { competitionId } = useParams()
   const cached = competitionId ? peekCompetitionDetail(competitionId) : null
@@ -96,6 +133,34 @@ export function CompetitionDetailPage() {
   ])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<StandingForm>(() => createEmptyStandingForm())
+
+  const eventPhotos = useMemo(
+    () => detail?.media?.filter((item) => item.mediaType === 'event_photo') ?? [],
+    [detail],
+  )
+
+  const certificatesByStanding = useMemo(() => {
+    const map = new Map<string, CompetitionMedia[]>()
+
+    for (const item of detail?.media ?? []) {
+      if (item.mediaType !== 'certificate') {
+        continue
+      }
+
+      const standingId = item.standingCompetitionId ?? item.competitionId
+      if (!standingId) {
+        continue
+      }
+
+      if (!map.has(standingId)) {
+        map.set(standingId, [])
+      }
+
+      map.get(standingId)?.push(item)
+    }
+
+    return map
+  }, [detail])
 
   async function reloadDetail(id: string) {
     const latest = await fetchCompetitionDetail(id)
@@ -332,6 +397,127 @@ export function CompetitionDetailPage() {
     }
   }
 
+  async function handleUploadEventPhotos(files: File[]) {
+    if (!competitionId || files.length === 0) {
+      return
+    }
+
+    clearActionMessage()
+    setActionLoading(true)
+
+    try {
+      let uploadedCount = 0
+
+      for (const file of files) {
+        if (!isPhotoFile(file)) {
+          throw new Error(`文件“${file.name}”不是图片格式，仅支持上传赛事照片（图片）`)
+        }
+
+        if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+          throw new Error(`文件“${file.name}”超过 20MB，请压缩后上传`)
+        }
+
+        await uploadCompetitionMedia({
+          competitionId,
+          mediaType: 'event_photo',
+          file,
+        })
+
+        uploadedCount += 1
+      }
+
+      await reloadDetail(competitionId)
+      setActionSuccess(
+        uploadedCount > 1 ? `已上传 ${uploadedCount} 张赛事照片` : '赛事照片上传成功',
+      )
+    } catch (uploadError) {
+      setActionError(uploadError instanceof Error ? uploadError.message : '赛事照片上传失败')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleUploadCertificate(standingId: string, file: File) {
+    if (!competitionId) {
+      return
+    }
+
+    clearActionMessage()
+    setActionLoading(true)
+
+    try {
+      if (!isCertificateFile(file)) {
+        throw new Error('奖状仅支持图片或 PDF 文件')
+      }
+
+      if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+        throw new Error(`文件“${file.name}”超过 20MB，请压缩后上传`)
+      }
+
+      await uploadCompetitionMedia({
+        competitionId,
+        mediaType: 'certificate',
+        standingCompetitionId: standingId,
+        file,
+      })
+
+      await reloadDetail(competitionId)
+      setActionSuccess('奖状上传成功')
+    } catch (uploadError) {
+      setActionError(uploadError instanceof Error ? uploadError.message : '奖状上传失败')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleDeleteMedia(item: CompetitionMedia) {
+    if (!competitionId) {
+      return
+    }
+
+    if (!window.confirm(`确定删除附件“${item.fileName}”吗？`)) {
+      return
+    }
+
+    clearActionMessage()
+    setActionLoading(true)
+
+    try {
+      await deleteCompetitionMedia(item.id)
+      await reloadDetail(competitionId)
+      setActionSuccess('附件删除成功')
+    } catch (deleteError) {
+      setActionError(deleteError instanceof Error ? deleteError.message : '附件删除失败')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function onPhotoInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files ? Array.from(event.target.files) : []
+    event.currentTarget.value = ''
+
+    if (files.length === 0) {
+      return
+    }
+
+    await handleUploadEventPhotos(files)
+  }
+
+  async function onCertificateInputChange(
+    standingId: string,
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0]
+    event.currentTarget.value = ''
+
+    if (!file) {
+      return
+    }
+
+    await handleUploadCertificate(standingId, file)
+  }
+
   return (
     <div className="stack">
       <Link className="inline-link" to="/cohorts">
@@ -369,6 +555,63 @@ export function CompetitionDetailPage() {
 
           <section className="panel">
             <div className="panel-header">
+              <h3>赛事照片</h3>
+              <p>支持上传现场照片，作为该比赛的图集记录。</p>
+            </div>
+
+            {eventPhotos.length === 0 ? (
+              <EmptyState title="暂无赛事照片" description="管理员可在本页上传赛事照片。" />
+            ) : (
+              <div className="competition-photo-grid">
+                {eventPhotos.map((photo) => (
+                  <article key={photo.id} className="competition-photo-card">
+                    <a href={photo.url} target="_blank" rel="noreferrer" className="competition-photo-link">
+                      <img src={photo.url} alt={photo.fileName} loading="lazy" />
+                    </a>
+                    <div className="competition-photo-meta">
+                      <a href={photo.url} target="_blank" rel="noreferrer" className="inline-link">
+                        {photo.fileName}
+                      </a>
+                      <span className="status-hint">
+                        {formatFileSize(photo.fileSize)}
+                        {photo.createdAt ? ` · ${photo.createdAt.slice(0, 10)}` : ''}
+                      </span>
+                    </div>
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        className="btn btn-small btn-danger"
+                        onClick={() => void handleDeleteMedia(photo)}
+                        disabled={actionLoading}
+                      >
+                        删除照片
+                      </button>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {isAdmin && !checkingAdmin ? (
+              <div className="media-upload-actions">
+                <label className="btn btn-small">
+                  上传赛事照片
+                  <input
+                    type="file"
+                    hidden
+                    multiple
+                    accept="image/*"
+                    onChange={(event) => void onPhotoInputChange(event)}
+                    disabled={actionLoading}
+                  />
+                </label>
+                <span className="status-hint">单文件上限 20MB，支持多选上传</span>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="panel">
+            <div className="panel-header">
               <h3>获奖与参赛名单</h3>
             </div>
 
@@ -384,62 +627,117 @@ export function CompetitionDetailPage() {
                       <th>奖项</th>
                       <th>队伍</th>
                       <th>成员</th>
+                      <th>奖状附件</th>
                       {isAdmin ? <th>操作</th> : null}
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.standings.map((entry, index) => (
-                      <tr key={entry.id}>
-                        <td>{index + 1}</td>
-                        <td>{entry.rank ? <RankBadge rank={entry.rank} /> : '-'}</td>
-                        <td>{entry.award ? <AwardBadge award={entry.award} /> : '-'}</td>
-                        <td>{entry.teamName ?? '-'}</td>
-                        <td>
-                          {entry.participants.length > 0 ? (
-                            entry.participants.map((member, participantIndex) => (
-                              <span key={member.id}>
-                                {participantIndex > 0 ? '、' : ''}
-                                <Link className="inline-link" to={`/member/${member.id}`}>
-                                  {member.name}
-                                </Link>
-                              </span>
-                            ))
-                          ) : (
-                            '-'
-                          )}
-                        </td>
-                        {isAdmin ? (
+                    {detail.standings.map((entry, index) => {
+                      const certificates = certificatesByStanding.get(entry.id) ?? []
+
+                      return (
+                        <tr key={entry.id}>
+                          <td>{index + 1}</td>
+                          <td>{entry.rank ? <RankBadge rank={entry.rank} /> : '-'}</td>
+                          <td>{entry.award ? <AwardBadge award={entry.award} /> : '-'}</td>
+                          <td>{entry.teamName ?? '-'}</td>
                           <td>
-                            <div className="action-row">
-                              <button
-                                type="button"
-                                className="btn btn-small"
-                                onClick={() => {
-                                  setEditingId(entry.id)
-                                  setEditForm({
-                                    teamName: entry.teamName ?? '',
-                                    rank: entry.rank ?? '',
-                                    award: entry.award ?? '',
-                                    remark: entry.remark ?? '',
-                                    memberIds: entry.participants.map((member) => member.id),
-                                  })
-                                }}
-                              >
-                                编辑
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-small btn-danger"
-                                onClick={() => void handleDeleteStanding(entry)}
-                                disabled={actionLoading}
-                              >
-                                删除
-                              </button>
+                            {entry.participants.length > 0 ? (
+                              entry.participants.map((member, participantIndex) => (
+                                <span key={member.id}>
+                                  {participantIndex > 0 ? '、' : ''}
+                                  <Link className="inline-link" to={`/member/${member.id}`}>
+                                    {member.name}
+                                  </Link>
+                                </span>
+                              ))
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td>
+                            <div className="attachment-stack">
+                              {certificates.length === 0 ? (
+                                <span>-</span>
+                              ) : (
+                                <ul className="attachment-list">
+                                  {certificates.map((certificate) => (
+                                    <li key={certificate.id} className="attachment-item">
+                                      <a
+                                        href={certificate.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-link"
+                                      >
+                                        {certificate.fileName}
+                                      </a>
+                                      <span className="status-hint">
+                                        {formatFileSize(certificate.fileSize)}
+                                      </span>
+                                      {isAdmin ? (
+                                        <button
+                                          type="button"
+                                          className="btn btn-small btn-danger"
+                                          onClick={() => void handleDeleteMedia(certificate)}
+                                          disabled={actionLoading}
+                                        >
+                                          删除
+                                        </button>
+                                      ) : null}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+
+                              {isAdmin ? (
+                                <label className="btn btn-small">
+                                  上传奖状
+                                  <input
+                                    type="file"
+                                    hidden
+                                    accept="image/*,application/pdf"
+                                    onChange={(event) =>
+                                      void onCertificateInputChange(entry.id, event)
+                                    }
+                                    disabled={actionLoading}
+                                  />
+                                </label>
+                              ) : null}
                             </div>
                           </td>
-                        ) : null}
-                      </tr>
-                    ))}
+                          {isAdmin ? (
+                            <td>
+                              <div className="action-row">
+                                <button
+                                  type="button"
+                                  className="btn btn-small"
+                                  onClick={() => {
+                                    setEditingId(entry.id)
+                                    setEditForm({
+                                      teamName: entry.teamName ?? '',
+                                      rank: entry.rank ?? '',
+                                      award: entry.award ?? '',
+                                      remark: entry.remark ?? '',
+                                      memberIds: entry.participants.map((member) => member.id),
+                                    })
+                                  }}
+                                >
+                                  编辑
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-small btn-danger"
+                                  onClick={() => void handleDeleteStanding(entry)}
+                                  disabled={actionLoading}
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            </td>
+                          ) : null}
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -681,6 +979,10 @@ export function CompetitionDetailPage() {
               ) : null}
             </section>
           ) : null}
+
+          <p className="todo-note">
+            TODO: 后续补充“删除附件时同步回收 OSS 对象 + 图片压缩与水印 + 上传进度条 + 批量拖拽上传”。
+          </p>
         </>
       ) : null}
     </div>
