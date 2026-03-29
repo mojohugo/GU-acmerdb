@@ -21,9 +21,9 @@ export function Layout({ children }: PropsWithChildren) {
           </div>
 
           <div className="topbar-status" aria-label="站点状态">
-            <span className="badge-chip badge-chip-live">实时更新</span>
+            <span className="badge-chip badge-chip-live">稳定运行</span>
             <span className="badge-chip">队员 / 赛事</span>
-            <span className="badge-chip badge-chip-anime">记录系统</span>
+            <span className="badge-chip badge-chip-anime">数据维护中</span>
           </div>
         </div>
 
