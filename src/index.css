@@ -512,6 +512,46 @@ select option {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.member-picker {
+  display: grid;
+  gap: 8px;
+  color: var(--subtle);
+  font-size: 14px;
+}
+
+.member-picker > p {
+  margin: 0;
+}
+
+.member-picker-grid {
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid rgba(125, 114, 177, 0.22);
+  border-radius: 11px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.84);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.member-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(125, 114, 177, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 7px 9px;
+  color: var(--ink);
+}
+
+.member-picker-item input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
 .full-width {
   grid-column: 1 / -1;
 }

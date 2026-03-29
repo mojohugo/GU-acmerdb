@@ -47,6 +47,11 @@ export interface MemberDetail extends Member {
   competitions: Competition[]
 }
 
+export interface CompetitionDetail {
+  focus: Competition
+  standings: Competition[]
+}
+
 export interface HomeStats {
   membersCount: number
   activeMembersCount: number

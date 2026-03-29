@@ -10,6 +10,7 @@ import { getSupabaseClient } from './supabase'
 import type {
   AdminProfile,
   Competition,
+  CompetitionDetail,
   CompetitionDraft,
   ContestCategory,
   HomeStats,
@@ -63,6 +64,7 @@ const MEMBERS_CACHE_PREFIX = 'members:'
 const MEMBER_PAGES_CACHE_PREFIX = 'member-pages:'
 const AVAILABLE_COHORTS_CACHE_KEY = 'available-cohorts'
 const MEMBER_DETAIL_CACHE_PREFIX = 'member-detail:'
+const COMPETITION_DETAIL_CACHE_PREFIX = 'competition-detail:'
 const COHORT_OVERVIEW_CACHE_KEY = 'cohort-overview'
 const HOME_STATS_CACHE_KEY = 'home-stats'
 
@@ -70,6 +72,7 @@ const MEMBERS_CACHE_TTL_MS = 60_000
 const MEMBER_PAGES_CACHE_TTL_MS = 60_000
 const AVAILABLE_COHORTS_CACHE_TTL_MS = 5 * 60_000
 const MEMBER_DETAIL_CACHE_TTL_MS = 2 * 60_000
+const COMPETITION_DETAIL_CACHE_TTL_MS = 2 * 60_000
 const COHORT_OVERVIEW_CACHE_TTL_MS = 60_000
 const HOME_STATS_CACHE_TTL_MS = 60_000
 
@@ -154,6 +157,10 @@ function toMemberDetailCacheKey(memberId: string) {
   return `${MEMBER_DETAIL_CACHE_PREFIX}${memberId}`
 }
 
+function toCompetitionDetailCacheKey(competitionId: string) {
+  return `${COMPETITION_DETAIL_CACHE_PREFIX}${competitionId}`
+}
+
 function invalidateMemberRelatedCache() {
   invalidateCacheByPrefix(MEMBERS_CACHE_PREFIX)
   invalidateCacheByPrefix(MEMBER_PAGES_CACHE_PREFIX)
@@ -166,6 +173,7 @@ function invalidateMemberRelatedCache() {
 function invalidateCompetitionRelatedCache() {
   invalidateCacheKey(COHORT_OVERVIEW_CACHE_KEY)
   invalidateCacheByPrefix(MEMBER_DETAIL_CACHE_PREFIX)
+  invalidateCacheByPrefix(COMPETITION_DETAIL_CACHE_PREFIX)
   invalidateCacheKey(HOME_STATS_CACHE_KEY)
 }
 
@@ -246,6 +254,144 @@ function sortCompetitionDesc(a: Competition, b: Competition): number {
   return b.seasonYear - a.seasonYear
 }
 
+function getRankValue(rank: string | null): number {
+  if (!rank) {
+    return Number.POSITIVE_INFINITY
+  }
+
+  const match = rank.match(/\d+/)
+  if (!match) {
+    return Number.POSITIVE_INFINITY
+  }
+
+  const parsed = Number(match[0])
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY
+}
+
+function getAwardLevel(award: string | null): number {
+  if (!award) {
+    return 0
+  }
+
+  const text = award.toLowerCase()
+
+  if (/冠军|特等|金|一等奖|first|champion|gold/.test(text)) {
+    return 7
+  }
+  if (/亚军|银|二等奖|second|silver/.test(text)) {
+    return 6
+  }
+  if (/季军|铜|三等奖|third|bronze/.test(text)) {
+    return 5
+  }
+  if (/优秀|honorable/.test(text)) {
+    return 3
+  }
+
+  return 1
+}
+
+function sortCompetitionStanding(a: Competition, b: Competition): number {
+  const aRank = getRankValue(a.rank)
+  const bRank = getRankValue(b.rank)
+
+  if (aRank !== bRank) {
+    return aRank - bRank
+  }
+
+  const aAward = getAwardLevel(a.award)
+  const bAward = getAwardLevel(b.award)
+
+  if (aAward !== bAward) {
+    return bAward - aAward
+  }
+
+  if (a.teamName && b.teamName) {
+    return a.teamName.localeCompare(b.teamName, 'zh-Hans-CN')
+  }
+
+  return a.title.localeCompare(b.title, 'zh-Hans-CN')
+}
+
+async function enrichCompetitionsWithParticipants(
+  client: ReturnType<typeof getSupabaseClient>,
+  rows: Record<string, unknown>[],
+): Promise<Competition[]> {
+  if (rows.length === 0) {
+    return []
+  }
+
+  const competitionIds = rows
+    .map((row) => asString(row.id))
+    .filter((id): id is string => Boolean(id))
+
+  if (competitionIds.length === 0) {
+    return rows.map((row) => mapCompetition(row))
+  }
+
+  const { data: links, error: linkError } = await client
+    .from('competition_members')
+    .select('competition_id,member_id')
+    .in('competition_id', competitionIds)
+
+  if (linkError) {
+    throw linkError
+  }
+
+  const memberIds = [
+    ...new Set(
+      (links ?? [])
+        .map((row) => asString((row as Record<string, unknown>).member_id))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ]
+
+  const memberMap = new Map<string, MemberMini>()
+  if (memberIds.length > 0) {
+    const { data: members, error: membersError } = await client
+      .from('members')
+      .select('id,name,cohort_year')
+      .in('id', memberIds)
+
+    if (membersError) {
+      throw membersError
+    }
+
+    for (const row of members ?? []) {
+      const mapped = mapMemberMini(row as unknown as Record<string, unknown>)
+      if (mapped.id) {
+        memberMap.set(mapped.id, mapped)
+      }
+    }
+  }
+
+  const participantsByCompetition = new Map<string, MemberMini[]>()
+  for (const row of links ?? []) {
+    const link = row as Record<string, unknown>
+    const competitionId = asString(link.competition_id)
+    const memberId = asString(link.member_id)
+    const member = memberId ? memberMap.get(memberId) : undefined
+
+    if (!competitionId || !member) {
+      continue
+    }
+
+    if (!participantsByCompetition.has(competitionId)) {
+      participantsByCompetition.set(competitionId, [])
+    }
+
+    participantsByCompetition.get(competitionId)?.push(member)
+  }
+
+  return rows.map((row) => {
+    const mapped = mapCompetition(row)
+    return {
+      ...mapped,
+      participants: participantsByCompetition.get(mapped.id) ?? [],
+    }
+  })
+}
+
 export function peekMembers(filters?: MemberFilters) {
   return peekCachedValue<Member[]>(toMembersCacheKey(filters))
 }
@@ -260,6 +406,10 @@ export function peekAvailableCohorts() {
 
 export function peekMemberDetail(memberId: string) {
   return peekCachedValue<MemberDetail>(toMemberDetailCacheKey(memberId))
+}
+
+export function peekCompetitionDetail(competitionId: string) {
+  return peekCachedValue<CompetitionDetail>(toCompetitionDetailCacheKey(competitionId))
 }
 
 export function peekCohortOverview() {
@@ -465,13 +615,72 @@ export async function fetchMemberDetail(memberId: string): Promise<MemberDetail>
   })
 }
 
+export async function fetchCompetitionDetail(
+  competitionId: string,
+): Promise<CompetitionDetail> {
+  return fetchWithCache({
+    key: toCompetitionDetailCacheKey(competitionId),
+    ttlMs: COMPETITION_DETAIL_CACHE_TTL_MS,
+    fetcher: async () => {
+      const client = getSupabaseClient()
+
+      const { data: focusRow, error: focusError } = await client
+        .from('competitions')
+        .select(competitionFields)
+        .eq('id', competitionId)
+        .single()
+
+      if (focusError) {
+        throw focusError
+      }
+
+      const focusRaw = focusRow as unknown as Record<string, unknown>
+      const focus = mapCompetition(focusRaw)
+
+      const relatedQuery = client
+        .from('competitions')
+        .select(competitionFields)
+        .eq('title', focus.title)
+        .eq('category', focus.category)
+        .eq('season_year', focus.seasonYear)
+
+      const { data: relatedRows, error: relatedError } = await relatedQuery
+
+      if (relatedError) {
+        throw relatedError
+      }
+
+      const standingsRows = (
+        (relatedRows as unknown as Record<string, unknown>[] | null) ?? []
+      )
+      const rowsWithFallback =
+        standingsRows.length > 0
+          ? standingsRows
+          : [focusRaw]
+
+      const standings = (await enrichCompetitionsWithParticipants(
+        client,
+        rowsWithFallback,
+      )).sort(sortCompetitionStanding)
+
+      const focusWithParticipants =
+        standings.find((item) => item.id === competitionId) ?? focus
+
+      return {
+        focus: focusWithParticipants,
+        standings,
+      }
+    },
+  })
+}
+
 export async function fetchCohortOverview() {
   return fetchWithCache({
     key: COHORT_OVERVIEW_CACHE_KEY,
     ttlMs: COHORT_OVERVIEW_CACHE_TTL_MS,
     fetcher: async () => {
       const client = getSupabaseClient()
-      const { data, error } = await client
+      const { data: rows, error } = await client
         .from('competitions')
         .select(competitionFields)
         .order('happened_at', { ascending: false })
@@ -481,66 +690,12 @@ export async function fetchCohortOverview() {
         throw error
       }
 
-      const { data: links, error: linkError } = await client
-        .from('competition_members')
-        .select('competition_id,member_id')
+      const mapped = await enrichCompetitionsWithParticipants(
+        client,
+        ((rows as unknown as Record<string, unknown>[] | null) ?? []),
+      )
 
-      if (linkError) {
-        throw linkError
-      }
-
-      const memberIds = [...new Set(
-        (links ?? [])
-          .map((row) => asString((row as Record<string, unknown>).member_id))
-          .filter((id): id is string => Boolean(id)),
-      )]
-
-      const memberMap = new Map<string, MemberMini>()
-      if (memberIds.length > 0) {
-        const { data: members, error: membersError } = await client
-          .from('members')
-          .select('id,name,cohort_year')
-          .in('id', memberIds)
-
-        if (membersError) {
-          throw membersError
-        }
-
-        for (const row of members ?? []) {
-          const mapped = mapMemberMini(row as unknown as Record<string, unknown>)
-          if (mapped.id) {
-            memberMap.set(mapped.id, mapped)
-          }
-        }
-      }
-
-      const participantsByCompetition = new Map<string, MemberMini[]>()
-      for (const row of links ?? []) {
-        const link = row as Record<string, unknown>
-        const competitionId = asString(link.competition_id)
-        const memberId = asString(link.member_id)
-        const member = memberId ? memberMap.get(memberId) : undefined
-
-        if (!competitionId || !member) {
-          continue
-        }
-
-        if (!participantsByCompetition.has(competitionId)) {
-          participantsByCompetition.set(competitionId, [])
-        }
-
-        participantsByCompetition.get(competitionId)?.push(member)
-      }
-
-      return (data ?? [])
-        .map((row) => {
-          const mapped = mapCompetition(row as unknown as Record<string, unknown>)
-          return {
-            ...mapped,
-            participants: participantsByCompetition.get(mapped.id) ?? [],
-          }
-        })
-        .sort(sortCompetitionDesc)
+      return mapped.sort(sortCompetitionDesc)
     },
   })
 }

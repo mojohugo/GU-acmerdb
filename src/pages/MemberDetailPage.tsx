@@ -167,7 +167,14 @@ export function MemberDetailPage() {
                           {items.map((competition) => (
                             <tr key={competition.id}>
                               <td>{competition.happenedAt ?? '-'}</td>
-                              <td>{competition.title}</td>
+                              <td>
+                                <Link
+                                  className="inline-link"
+                                  to={`/competition/${competition.id}`}
+                                >
+                                  {competition.title}
+                                </Link>
+                              </td>
                               <td>
                                 <ContestTypeTag category={competition.category} />
                               </td>

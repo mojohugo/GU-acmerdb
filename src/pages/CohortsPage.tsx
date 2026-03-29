@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
@@ -265,7 +266,12 @@ export function CohortsPage() {
                             {list.map((competition) => (
                               <article key={competition.id} className="timeline-item">
                                 <div className="timeline-head">
-                                  <strong>{competition.title}</strong>
+                                  <Link
+                                    className="inline-link"
+                                    to={`/competition/${competition.id}`}
+                                  >
+                                    <strong>{competition.title}</strong>
+                                  </Link>
                                   <ContestTypeTag category={competition.category} />
                                 </div>
                                 <p>
