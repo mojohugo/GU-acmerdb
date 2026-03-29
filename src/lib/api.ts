@@ -1346,16 +1346,35 @@ export async function uploadCompetitionMedia(
     throw new Error('上传签名服务返回异常，请检查 oss-sign-upload 函数配置')
   }
 
-  const uploadResponse = await fetch(signedData.uploadUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': signedData.contentType || contentType,
-    },
-    body: input.file,
-  })
+  let uploadResponse: Response
+  try {
+    uploadResponse = await fetch(signedData.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': signedData.contentType || contentType,
+      },
+      body: input.file,
+    })
+  } catch (uploadError) {
+    const reason = uploadError instanceof Error ? uploadError.message : 'unknown error'
+    throw new Error(
+      `上传到 OSS 失败：浏览器无法访问上传地址（常见原因：OSS CORS 未配置、OSS_ENDPOINT 填错）。原始错误：${reason}`,
+    )
+  }
 
   if (!uploadResponse.ok) {
-    throw new Error(`上传到 OSS 失败（HTTP ${uploadResponse.status}）`)
+    let detail = ''
+    try {
+      detail = (await uploadResponse.text()).trim()
+    } catch {
+      detail = ''
+    }
+
+    throw new Error(
+      detail.length > 0
+        ? `上传到 OSS 失败（HTTP ${uploadResponse.status}）：${detail.slice(0, 200)}`
+        : `上传到 OSS 失败（HTTP ${uploadResponse.status}）`,
+    )
   }
 
   return createCompetitionMedia({
