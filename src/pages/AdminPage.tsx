@@ -63,7 +63,7 @@ const initialCompetitionForm: CompetitionForm = {
 function toMemberDraft(form: MemberForm): MemberDraft {
   const cohortYear = Number(form.cohortYear)
   if (!form.name.trim() || !Number.isFinite(cohortYear) || cohortYear <= 0) {
-    throw new Error('?????????????')
+    throw new Error('请填写正确的队员姓名和届别')
   }
   return {
     name: form.name.trim(),
@@ -80,12 +80,12 @@ function toCompetitionDraft(
 ): CompetitionDraft {
   const seasonYear = Number(form.seasonYear)
   if (!form.title.trim() || !Number.isFinite(seasonYear) || seasonYear <= 0) {
-    throw new Error('???????????????')
+    throw new Error('请填写正确的赛事名称和赛季年份')
   }
 
   const cohortYear = form.cohortYear ? Number(form.cohortYear) : undefined
   if (form.cohortYear && (!Number.isFinite(cohortYear) || (cohortYear ?? 0) <= 0)) {
-    throw new Error('???????')
+    throw new Error('届别格式不正确')
   }
 
   return {
@@ -130,7 +130,7 @@ export function AdminPage() {
   const [editCompetitionMemberIds, setEditCompetitionMemberIds] = useState<string[]>([])
 
   const memberOptions = useMemo(
-    () => members.map((m) => ({ id: m.id, label: `${m.name} (${m.cohortYear}?)` })),
+    () => members.map((m) => ({ id: m.id, label: `${m.name} (${m.cohortYear}级)` })),
     [members],
   )
 
@@ -171,7 +171,7 @@ export function AdminPage() {
           await loadData()
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : '??????')
+        setError(e instanceof Error ? e.message : '权限校验失败')
       } finally {
         setChecking(false)
       }
@@ -191,9 +191,9 @@ export function AdminPage() {
       setEmail('')
       setPassword('')
       await loadData()
-      setSuccess('????')
+      setSuccess('登录成功')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '????')
+      setError(e instanceof Error ? e.message : '登录失败')
     } finally {
       setSubmitting(false)
     }
@@ -210,9 +210,9 @@ export function AdminPage() {
       setCompetitions([])
       setEditingMemberId(null)
       setEditingCompetitionId(null)
-      setSuccess('?????')
+      setSuccess('已退出登录')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '????')
+      setError(e instanceof Error ? e.message : '退出失败')
     } finally {
       setSubmitting(false)
     }
@@ -226,9 +226,9 @@ export function AdminPage() {
       await createMember(toMemberDraft(memberForm))
       setMemberForm(initialMemberForm)
       await loadData()
-      setSuccess('??????')
+      setSuccess('队员创建成功')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '??????')
+      setError(e instanceof Error ? e.message : '创建队员失败')
     } finally {
       setSubmitting(false)
     }
@@ -243,9 +243,9 @@ export function AdminPage() {
       setCompetitionForm(initialCompetitionForm)
       setSelectedMemberIds([])
       await loadData()
-      setSuccess('??????')
+      setSuccess('赛事创建成功')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '??????')
+      setError(e instanceof Error ? e.message : '创建赛事失败')
     } finally {
       setSubmitting(false)
     }
@@ -260,9 +260,9 @@ export function AdminPage() {
       await updateMember(editingMemberId, toMemberDraft(editMemberForm))
       setEditingMemberId(null)
       await loadData()
-      setSuccess('??????')
+      setSuccess('队员更新成功')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '??????')
+      setError(e instanceof Error ? e.message : '更新队员失败')
     } finally {
       setSubmitting(false)
     }
@@ -280,41 +280,41 @@ export function AdminPage() {
       )
       setEditingCompetitionId(null)
       await loadData()
-      setSuccess('??????')
+      setSuccess('赛事更新成功')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '??????')
+      setError(e instanceof Error ? e.message : '更新赛事失败')
     } finally {
       setSubmitting(false)
     }
   }
 
   async function onDeleteMember(member: Member) {
-    if (!window.confirm(`???????${member.name}??`)) return
+    if (!window.confirm(`确定删除队员「${member.name}」吗？`)) return
     clearMsg()
     setSubmitting(true)
     try {
       await deleteMember(member.id)
       if (editingMemberId === member.id) setEditingMemberId(null)
       await loadData()
-      setSuccess('?????')
+      setSuccess('队员删除成功')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '??????')
+      setError(e instanceof Error ? e.message : '删除队员失败')
     } finally {
       setSubmitting(false)
     }
   }
 
   async function onDeleteCompetition(competition: Competition) {
-    if (!window.confirm(`???????${competition.title}??`)) return
+    if (!window.confirm(`确定删除赛事「${competition.title}」吗？`)) return
     clearMsg()
     setSubmitting(true)
     try {
       await deleteCompetition(competition.id)
       if (editingCompetitionId === competition.id) setEditingCompetitionId(null)
       await loadData()
-      setSuccess('?????')
+      setSuccess('赛事删除成功')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '??????')
+      setError(e instanceof Error ? e.message : '删除赛事失败')
     } finally {
       setSubmitting(false)
     }
@@ -323,8 +323,8 @@ export function AdminPage() {
   if (!isSupabaseConfigured) {
     return (
       <section className="panel">
-        <h2>?????</h2>
-        <p className="status status-error">??? Supabase????? .env.local?</p>
+        <h2>管理员后台</h2>
+        <p className="status status-error">未配置 Supabase，请先填写 .env.local。</p>
       </section>
     )
   }
@@ -332,8 +332,8 @@ export function AdminPage() {
   if (checking) {
     return (
       <section className="panel">
-        <h2>?????</h2>
-        <p className="status">????????...</p>
+        <h2>管理员后台</h2>
+        <p className="status">正在检查登录状态...</p>
       </section>
     )
   }
@@ -342,8 +342,8 @@ export function AdminPage() {
     <div className="stack">
       <section className="panel">
         <div className="panel-header">
-          <h2>?????</h2>
-          {isAdmin ? <p>??????{adminName}</p> : <p>??????????</p>}
+          <h2>管理员后台</h2>
+          {isAdmin ? <p>当前管理员：{adminName}</p> : <p>请使用管理员账号登录。</p>}
         </div>
         {error ? <p className="status status-error">{error}</p> : null}
         {success ? <p className="status status-success">{success}</p> : null}
@@ -351,11 +351,11 @@ export function AdminPage() {
         {!isAdmin ? (
           <form className="form-grid" onSubmit={handleLogin}>
             <label>
-              ??
+              邮箱
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </label>
             <label>
-              ??
+              密码
               <input
                 type="password"
                 value={password}
@@ -364,13 +364,13 @@ export function AdminPage() {
               />
             </label>
             <button className="btn btn-solid" disabled={submitting}>
-              {submitting ? '???...' : '??'}
+              {submitting ? '登录中...' : '登录'}
             </button>
           </form>
         ) : (
           <div className="hero-actions">
             <button className="btn" type="button" onClick={handleLogout} disabled={submitting}>
-              ??
+              退出登录
             </button>
             <button
               className="btn"
@@ -378,7 +378,7 @@ export function AdminPage() {
               onClick={() => void loadData()}
               disabled={loadingData || submitting}
             >
-              {loadingData ? '???...' : '????'}
+              {loadingData ? '刷新中...' : '刷新数据'}
             </button>
           </div>
         )}
@@ -388,11 +388,11 @@ export function AdminPage() {
         <>
           <section className="panel">
             <div className="panel-header">
-              <h3>????</h3>
+              <h3>新增队员</h3>
             </div>
             <form className="form-grid" onSubmit={submitCreateMember}>
               <label>
-                ??
+                姓名
                 <input
                   value={memberForm.name}
                   onChange={(e) => setMemberForm((p) => ({ ...p, name: e.target.value }))}
@@ -400,7 +400,7 @@ export function AdminPage() {
                 />
               </label>
               <label>
-                ??
+                届别
                 <input
                   type="number"
                   value={memberForm.cohortYear}
@@ -416,7 +416,7 @@ export function AdminPage() {
                 />
               </label>
               <label>
-                ??
+                专业
                 <input
                   value={memberForm.major}
                   onChange={(e) => setMemberForm((p) => ({ ...p, major: e.target.value }))}
@@ -428,21 +428,21 @@ export function AdminPage() {
                   checked={memberForm.isActive}
                   onChange={(e) => setMemberForm((p) => ({ ...p, isActive: e.target.checked }))}
                 />
-                ????
+                是否在队
               </label>
               <button className="btn btn-solid" disabled={submitting}>
-                {submitting ? '???...' : '????'}
+                {submitting ? '提交中...' : '创建队员'}
               </button>
             </form>
           </section>
 
           <section className="panel">
             <div className="panel-header">
-              <h3>????</h3>
+              <h3>新增赛事</h3>
             </div>
             <form className="form-grid" onSubmit={submitCreateCompetition}>
               <label>
-                ????
+                赛事名称
                 <input
                   value={competitionForm.title}
                   onChange={(e) => setCompetitionForm((p) => ({ ...p, title: e.target.value }))}
@@ -450,7 +450,7 @@ export function AdminPage() {
                 />
               </label>
               <label>
-                ??
+                赛事分类
                 <select
                   value={competitionForm.category}
                   onChange={(e) =>
@@ -468,7 +468,7 @@ export function AdminPage() {
                 </select>
               </label>
               <label>
-                ????
+                赛季年份
                 <input
                   type="number"
                   value={competitionForm.seasonYear}
@@ -479,7 +479,7 @@ export function AdminPage() {
                 />
               </label>
               <label>
-                ????
+                对应届别
                 <input
                   type="number"
                   value={competitionForm.cohortYear}
@@ -489,14 +489,14 @@ export function AdminPage() {
                 />
               </label>
               <label>
-                ??
+                奖项
                 <input
                   value={competitionForm.award}
                   onChange={(e) => setCompetitionForm((p) => ({ ...p, award: e.target.value }))}
                 />
               </label>
               <label>
-                ??
+                日期
                 <input
                   type="date"
                   value={competitionForm.happenedAt}
@@ -506,7 +506,7 @@ export function AdminPage() {
                 />
               </label>
               <label className="full-width">
-                ??
+                备注
                 <textarea
                   rows={2}
                   value={competitionForm.remark}
@@ -514,7 +514,7 @@ export function AdminPage() {
                 />
               </label>
               <label className="full-width">
-                ?????????
+                关联队员（可多选）
                 <select
                   multiple
                   value={selectedMemberIds}
@@ -533,31 +533,31 @@ export function AdminPage() {
                 </select>
               </label>
               <button className="btn btn-solid" disabled={submitting}>
-                {submitting ? '???...' : '????'}
+                {submitting ? '提交中...' : '创建赛事'}
               </button>
             </form>
           </section>
 
           <section className="panel">
             <div className="panel-header">
-              <h3>?????? / ??</h3>
+              <h3>队员列表 / 编辑</h3>
             </div>
             <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
-                    <th>??</th>
-                    <th>??</th>
-                    <th>??</th>
-                    <th>??</th>
+                    <th>姓名</th>
+                    <th>届别</th>
+                    <th>状态</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {members.map((member) => (
                     <tr key={member.id}>
                       <td>{member.name}</td>
-                      <td>{member.cohortYear} ?</td>
-                      <td>{member.isActive ? '??' : '???/??'}</td>
+                      <td>{member.cohortYear} 级</td>
+                      <td>{member.isActive ? '在队' : '退队/毕业'}</td>
                       <td>
                         <div className="action-row">
                           <button
@@ -574,14 +574,14 @@ export function AdminPage() {
                               })
                             }}
                           >
-                            ??
+                            编辑
                           </button>
                           <button
                             type="button"
                             className="btn btn-small btn-danger"
                             onClick={() => void onDeleteMember(member)}
                           >
-                            ??
+                            删除
                           </button>
                         </div>
                       </td>
@@ -593,9 +593,9 @@ export function AdminPage() {
 
             {editingMemberId ? (
               <form className="form-grid inline-wrap" onSubmit={submitUpdateMember}>
-                <h4 className="full-width">????</h4>
+                <h4 className="full-width">编辑队员</h4>
                 <label>
-                  ??
+                  姓名
                   <input
                     value={editMemberForm.name}
                     onChange={(e) => setEditMemberForm((p) => ({ ...p, name: e.target.value }))}
@@ -603,7 +603,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label>
-                  ??
+                  届别
                   <input
                     type="number"
                     value={editMemberForm.cohortYear}
@@ -623,7 +623,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label>
-                  ??
+                  专业
                   <input
                     value={editMemberForm.major}
                     onChange={(e) => setEditMemberForm((p) => ({ ...p, major: e.target.value }))}
@@ -637,14 +637,14 @@ export function AdminPage() {
                       setEditMemberForm((p) => ({ ...p, isActive: e.target.checked }))
                     }
                   />
-                  ????
+                  是否在队
                 </label>
                 <div className="action-row full-width">
                   <button className="btn btn-solid" disabled={submitting}>
-                    ????
+                    更新队员
                   </button>
                   <button className="btn" type="button" onClick={() => setEditingMemberId(null)}>
-                    ??
+                    取消
                   </button>
                 </div>
               </form>
@@ -653,18 +653,18 @@ export function AdminPage() {
 
           <section className="panel">
             <div className="panel-header">
-              <h3>?????? / ??</h3>
+              <h3>赛事列表 / 编辑</h3>
             </div>
             <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
-                    <th>??</th>
-                    <th>??</th>
-                    <th>??</th>
-                    <th>??</th>
-                    <th>??</th>
-                    <th>??</th>
+                    <th>赛事</th>
+                    <th>分类</th>
+                    <th>赛季</th>
+                    <th>奖项</th>
+                    <th>参赛队员</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -678,7 +678,7 @@ export function AdminPage() {
                       <td>{competition.award ?? '-'}</td>
                       <td>
                         {competition.participants.length
-                          ? competition.participants.map((m) => m.name).join('?')
+                          ? competition.participants.map((m) => m.name).join('、')
                           : '-'}
                       </td>
                       <td>
@@ -704,14 +704,14 @@ export function AdminPage() {
                               )
                             }}
                           >
-                            ??
+                            编辑
                           </button>
                           <button
                             type="button"
                             className="btn btn-small btn-danger"
                             onClick={() => void onDeleteCompetition(competition)}
                           >
-                            ??
+                            删除
                           </button>
                         </div>
                       </td>
@@ -723,9 +723,9 @@ export function AdminPage() {
 
             {editingCompetitionId ? (
               <form className="form-grid inline-wrap" onSubmit={submitUpdateCompetition}>
-                <h4 className="full-width">????</h4>
+                <h4 className="full-width">编辑赛事</h4>
                 <label>
-                  ????
+                  赛事名称
                   <input
                     value={editCompetitionForm.title}
                     onChange={(e) =>
@@ -735,7 +735,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label>
-                  ??
+                  赛事分类
                   <select
                     value={editCompetitionForm.category}
                     onChange={(e) =>
@@ -753,7 +753,7 @@ export function AdminPage() {
                   </select>
                 </label>
                 <label>
-                  ????
+                  赛季年份
                   <input
                     type="number"
                     value={editCompetitionForm.seasonYear}
@@ -764,7 +764,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label>
-                  ????
+                  对应届别
                   <input
                     type="number"
                     value={editCompetitionForm.cohortYear}
@@ -774,7 +774,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label>
-                  ??
+                  奖项
                   <input
                     value={editCompetitionForm.award}
                     onChange={(e) =>
@@ -783,7 +783,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label>
-                  ??
+                  日期
                   <input
                     type="date"
                     value={editCompetitionForm.happenedAt}
@@ -793,7 +793,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label className="full-width">
-                  ??
+                  备注
                   <textarea
                     rows={2}
                     value={editCompetitionForm.remark}
@@ -803,7 +803,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label className="full-width">
-                  ?????????
+                  关联队员（可多选）
                   <select
                     multiple
                     value={editCompetitionMemberIds}
@@ -823,21 +823,21 @@ export function AdminPage() {
                 </label>
                 <div className="action-row full-width">
                   <button className="btn btn-solid" disabled={submitting}>
-                    ????
+                    更新赛事
                   </button>
                   <button
                     className="btn"
                     type="button"
                     onClick={() => setEditingCompetitionId(null)}
                   >
-                    ??
+                    取消
                   </button>
                 </div>
               </form>
             ) : null}
 
             <p className="todo-note">
-              TODO: ????????? + ??? + ????????
+              TODO: 后台待补充批量导入、图片上传、证书附件。
             </p>
           </section>
         </>
