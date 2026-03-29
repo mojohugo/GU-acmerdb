@@ -1,4 +1,5 @@
 import type { PropsWithChildren } from 'react'
+import { CalendarClock, House, Info, ShieldCheck, Users } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 function navClassName({ isActive }: { isActive: boolean }) {
@@ -27,18 +28,23 @@ export function Layout({ children }: PropsWithChildren) {
 
         <nav className="topbar-nav">
           <NavLink to="/" className={navClassName}>
+            <House size={14} aria-hidden="true" className="nav-link-icon" />
             首页
           </NavLink>
           <NavLink to="/members" className={navClassName}>
+            <Users size={14} aria-hidden="true" className="nav-link-icon" />
             队员
           </NavLink>
           <NavLink to="/cohorts" className={navClassName}>
+            <CalendarClock size={14} aria-hidden="true" className="nav-link-icon" />
             赛事时间线
           </NavLink>
           <NavLink to="/admin" className={navClassName}>
+            <ShieldCheck size={14} aria-hidden="true" className="nav-link-icon" />
             管理
           </NavLink>
           <NavLink to="/about" className={navClassName}>
+            <Info size={14} aria-hidden="true" className="nav-link-icon" />
             关于
           </NavLink>
         </nav>

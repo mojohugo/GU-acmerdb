@@ -196,7 +196,7 @@ p {
 .result-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   border-radius: 999px;
   padding: 3px 10px;
   font-size: 12px;
@@ -207,9 +207,21 @@ p {
   white-space: nowrap;
 }
 
+.result-badge-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
 .result-badge-icon {
-  font-size: 13px;
-  line-height: 1;
+  width: 13px;
+  height: 13px;
+}
+
+.result-badge-text {
+  line-height: 1.2;
 }
 
 .result-badge-gold {
@@ -255,6 +267,9 @@ p {
 }
 
 .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 13px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.26);
@@ -265,6 +280,11 @@ p {
     transform 0.2s ease,
     background-color 0.2s ease,
     border-color 0.2s ease;
+}
+
+.nav-link-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .nav-link:hover {
@@ -700,12 +720,18 @@ tbody tr:hover {
 .contest-tag {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
   padding: 3px 10px;
   border: 1px solid currentColor;
   background: rgba(255, 255, 255, 0.76);
+}
+
+.contest-tag-icon {
+  width: 12px;
+  height: 12px;
 }
 
 .contest-tag-freshman {

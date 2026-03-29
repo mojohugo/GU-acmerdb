@@ -1,79 +1,93 @@
+import type { LucideIcon } from 'lucide-react'
+import { Award, BadgeCheck, Medal, Pin, Rocket, Star, Target, Trophy } from 'lucide-react'
+
 type BadgeTone = 'gold' | 'silver' | 'bronze' | 'rose' | 'blue' | 'neutral'
 
-function resolveAwardVisual(award: string): { icon: string; tone: BadgeTone } {
+type BadgeVisual = {
+  Icon: LucideIcon
+  tone: BadgeTone
+}
+
+function resolveAwardVisual(award: string): BadgeVisual {
   const normalized = award.trim().toLowerCase()
 
   if (/冠军|特等|金|一等奖|first|champion|gold/.test(normalized)) {
-    return { icon: '🏆', tone: 'gold' }
+    return { Icon: Trophy, tone: 'gold' }
   }
   if (/亚军|银|二等奖|second|silver/.test(normalized)) {
-    return { icon: '🥈', tone: 'silver' }
+    return { Icon: Medal, tone: 'silver' }
   }
   if (/季军|铜|三等奖|third|bronze/.test(normalized)) {
-    return { icon: '🥉', tone: 'bronze' }
+    return { Icon: Award, tone: 'bronze' }
   }
   if (/优秀|honorable|merit/.test(normalized)) {
-    return { icon: '🌟', tone: 'rose' }
+    return { Icon: Star, tone: 'rose' }
   }
   if (/入围|finalist|提名|nominee/.test(normalized)) {
-    return { icon: '🎖️', tone: 'blue' }
+    return { Icon: BadgeCheck, tone: 'blue' }
   }
 
-  return { icon: '🏅', tone: 'neutral' }
+  return { Icon: Award, tone: 'neutral' }
 }
 
-function resolveRankVisual(rank: string): { icon: string; tone: BadgeTone } {
+function resolveRankVisual(rank: string): BadgeVisual {
   const normalized = rank.trim().toLowerCase()
 
   if (/冠军|first|1st/.test(normalized)) {
-    return { icon: '🥇', tone: 'gold' }
+    return { Icon: Trophy, tone: 'gold' }
   }
   if (/亚军|second|2nd/.test(normalized)) {
-    return { icon: '🥈', tone: 'silver' }
+    return { Icon: Medal, tone: 'silver' }
   }
   if (/季军|third|3rd/.test(normalized)) {
-    return { icon: '🥉', tone: 'bronze' }
+    return { Icon: Award, tone: 'bronze' }
   }
 
   const rankNumber = Number(rank.match(/\d+/)?.[0] ?? NaN)
   if (Number.isFinite(rankNumber)) {
-    if (rankNumber <= 3) {
-      return { icon: ['🥇', '🥈', '🥉'][rankNumber - 1], tone: ['gold', 'silver', 'bronze'][rankNumber - 1] as BadgeTone }
+    if (rankNumber === 1) {
+      return { Icon: Trophy, tone: 'gold' }
+    }
+    if (rankNumber === 2) {
+      return { Icon: Medal, tone: 'silver' }
+    }
+    if (rankNumber === 3) {
+      return { Icon: Award, tone: 'bronze' }
     }
     if (rankNumber <= 10) {
-      return { icon: '🎯', tone: 'blue' }
+      return { Icon: Target, tone: 'blue' }
     }
     if (rankNumber <= 50) {
-      return { icon: '🚀', tone: 'rose' }
+      return { Icon: Rocket, tone: 'rose' }
     }
   }
 
-  return { icon: '📌', tone: 'neutral' }
+  return { Icon: Pin, tone: 'neutral' }
 }
 
 type ResultBadgeProps = {
   text: string
-  icon: string
+  Icon: LucideIcon
   tone: BadgeTone
 }
 
-function ResultBadge({ text, icon, tone }: ResultBadgeProps) {
+function ResultBadge({ text, Icon, tone }: ResultBadgeProps) {
   return (
     <span className={`result-badge result-badge-${tone}`}>
-      <span className="result-badge-icon" aria-hidden="true">
-        {icon}
+      <span className="result-badge-icon-wrap" aria-hidden="true">
+        <Icon className="result-badge-icon" size={13} strokeWidth={2.1} />
       </span>
-      <span>{text}</span>
+      <span className="result-badge-text">{text}</span>
     </span>
   )
 }
 
 export function AwardBadge({ award }: { award: string }) {
   const visual = resolveAwardVisual(award)
-  return <ResultBadge text={award} icon={visual.icon} tone={visual.tone} />
+  return <ResultBadge text={award} Icon={visual.Icon} tone={visual.tone} />
 }
 
 export function RankBadge({ rank }: { rank: string }) {
   const visual = resolveRankVisual(rank)
-  return <ResultBadge text={rank} icon={visual.icon} tone={visual.tone} />
+  return <ResultBadge text={rank} Icon={visual.Icon} tone={visual.tone} />
 }
