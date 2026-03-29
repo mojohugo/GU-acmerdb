@@ -4,6 +4,7 @@ import { EmptyState } from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { fetchCohortOverview, peekCohortOverview } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
+import { downloadCsv } from '../lib/csv'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { Competition, ContestCategory } from '../types'
 
@@ -57,6 +58,44 @@ function toSearchText(competition: Competition) {
   ]
     .join(' ')
     .toLowerCase()
+}
+
+function getCurrentDateLabel() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}${month}${day}`
+}
+
+function exportCompetitionsAsCsv(competitions: Competition[]) {
+  downloadCsv({
+    filename: `gu-acmerdb-cohorts-${getCurrentDateLabel()}.csv`,
+    headers: [
+      '届别',
+      '分类',
+      '赛事',
+      '赛季',
+      '日期',
+      '奖项',
+      '名次',
+      '队伍',
+      '参赛成员',
+      '备注',
+    ],
+    rows: competitions.map((competition) => [
+      competition.cohortYear ?? '',
+      CONTEST_TYPE_LABELS[competition.category],
+      competition.title,
+      competition.seasonYear,
+      competition.happenedAt ?? '',
+      competition.award ?? '',
+      competition.rank ?? '',
+      competition.teamName ?? '',
+      competition.participants.map((member) => member.name).join('、'),
+      competition.remark ?? '',
+    ]),
+  })
 }
 
 export function CohortsPage() {
@@ -184,6 +223,14 @@ export function CohortsPage() {
           >
             清空筛选
           </button>
+          <button
+            className="btn"
+            type="button"
+            disabled={loading || Boolean(error) || filteredCompetitions.length === 0}
+            onClick={() => exportCompetitionsAsCsv(filteredCompetitions)}
+          >
+            导出当前结果 CSV
+          </button>
           {!loading && !error ? (
             <span className="status-hint">
               共 {filteredCompetitions.length} 条记录，覆盖 {sections.length} 个届别
@@ -253,7 +300,7 @@ export function CohortsPage() {
         ) : null}
 
         <p className="todo-note">
-          TODO: 后续补充“时间轴视图 + 届别对比图 + 一键导出当前筛选结果”。
+          TODO: 后续补充“时间轴图形化视图 + 届别对比图（支持跨届别指标）”。
         </p>
       </section>
     </div>

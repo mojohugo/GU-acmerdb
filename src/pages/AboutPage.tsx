@@ -10,7 +10,7 @@
         已支持 Hash 路由，地址中含 <code>#/</code>，刷新页面不会触发 Pages 的 404。
       </p>
       <p className="todo-note">
-        TODO: 增加与 OIerDb 更接近的统计图、学校/队伍排名页、复杂检索条件和导出能力。
+        TODO: 增加与 OIerDb 更接近的统计图、学校/队伍排名页、复杂检索条件和跨页面报表。
       </p>
     </section>
   )

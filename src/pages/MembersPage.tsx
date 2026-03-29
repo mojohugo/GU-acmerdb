@@ -9,6 +9,7 @@ import {
   peekAvailableCohorts,
   peekMembers,
 } from '../lib/api'
+import { downloadCsv } from '../lib/csv'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { Member } from '../types'
 
@@ -53,6 +54,28 @@ function buildMemberFilters(input: {
     cohortYear: input.cohortYear === '' ? undefined : input.cohortYear,
     isActive: toActiveFilter(input.statusFilter),
   }
+}
+
+function getCurrentDateLabel() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}${month}${day}`
+}
+
+function exportMembersAsCsv(members: Member[]) {
+  downloadCsv({
+    filename: `gu-acmerdb-members-${getCurrentDateLabel()}.csv`,
+    headers: ['姓名', '届别', 'handle', '专业', '状态'],
+    rows: members.map((member) => [
+      member.name,
+      member.cohortYear,
+      member.handle ?? '',
+      member.major ?? '',
+      member.isActive ? '在队' : '已毕业/离队',
+    ]),
+  })
 }
 
 export function MembersPage() {
@@ -236,6 +259,14 @@ export function MembersPage() {
           >
             清空筛选
           </button>
+          <button
+            className="btn"
+            type="button"
+            disabled={loading || Boolean(error) || members.length === 0}
+            onClick={() => exportMembersAsCsv(members)}
+          >
+            导出当前结果 CSV
+          </button>
           {!loading && !error ? (
             <span className="status-hint">共 {members.length} 名队员</span>
           ) : null}
@@ -282,7 +313,7 @@ export function MembersPage() {
         ) : null}
 
         <p className="todo-note">
-          TODO: 后续增加“多字段排序 + 分页 + 导出 CSV”能力，避免队员规模变大后单页加载过重。
+          TODO: 后续增加“服务端分页 + 多字段排序 + 大数据量异步导出”能力，避免规模变大后单页加载过重。
         </p>
       </section>
     </div>
