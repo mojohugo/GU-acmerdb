@@ -1277,13 +1277,15 @@ export async function uploadCompetitionMedia(
 
   const client = getSupabaseClient()
 
-  const { data: sessionData, error: sessionError } = await client.auth.getSession()
-  if (sessionError) {
-    throw sessionError
+  const {
+    data: { user },
+    error: userError,
+  } = await client.auth.getUser()
+  if (userError) {
+    throw userError
   }
 
-  const accessToken = sessionData.session?.access_token
-  if (!accessToken) {
+  if (!user) {
     throw new Error('请先以管理员账号登录后再上传附件')
   }
 
@@ -1291,7 +1293,7 @@ export async function uploadCompetitionMedia(
   const contentType = normalizeContentType(input.file.type)
   const fileSize = toSafeFileSize(input.file.size) ?? 0
 
-  const invokeSignUpload = (token: string) =>
+  const invokeSignUpload = () =>
     client.functions.invoke<SignedOssUploadResponse>('oss-sign-upload', {
       body: {
         competitionId: input.competitionId,
@@ -1301,12 +1303,9 @@ export async function uploadCompetitionMedia(
         contentType,
         fileSize,
       },
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     })
 
-  let { data: signedData, error: signError } = await invokeSignUpload(accessToken)
+  let { data: signedData, error: signError } = await invokeSignUpload()
 
   if (signError) {
     const initialMessage = await formatFunctionInvokeError(signError)
@@ -1316,7 +1315,7 @@ export async function uploadCompetitionMedia(
       const refreshedToken = refreshedSessionData.session?.access_token
 
       if (!refreshError && refreshedToken) {
-        const retried = await invokeSignUpload(refreshedToken)
+        const retried = await invokeSignUpload()
         signedData = retried.data
         signError = retried.error
       }
