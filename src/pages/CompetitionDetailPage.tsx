@@ -24,12 +24,14 @@ type StandingForm = {
   memberIds: string[]
 }
 
-const initialStandingForm: StandingForm = {
-  teamName: '',
-  rank: '',
-  award: '',
-  remark: '',
-  memberIds: [],
+function createEmptyStandingForm(): StandingForm {
+  return {
+    teamName: '',
+    rank: '',
+    award: '',
+    remark: '',
+    memberIds: [],
+  }
 }
 
 function toggleMemberIds(current: string[], memberId: string, checked: boolean) {
@@ -65,6 +67,16 @@ function toStandingDraft(focus: Competition, form: StandingForm): CompetitionDra
   }
 }
 
+function hasStandingInput(form: StandingForm) {
+  return (
+    Boolean(form.teamName.trim()) ||
+    Boolean(form.rank.trim()) ||
+    Boolean(form.award.trim()) ||
+    Boolean(form.remark.trim()) ||
+    form.memberIds.length > 0
+  )
+}
+
 export function CompetitionDetailPage() {
   const { competitionId } = useParams()
   const cached = competitionId ? peekCompetitionDetail(competitionId) : null
@@ -78,9 +90,11 @@ export function CompetitionDetailPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
-  const [createForm, setCreateForm] = useState<StandingForm>(initialStandingForm)
+  const [createForms, setCreateForms] = useState<StandingForm[]>(() => [
+    createEmptyStandingForm(),
+  ])
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<StandingForm>(initialStandingForm)
+  const [editForm, setEditForm] = useState<StandingForm>(() => createEmptyStandingForm())
 
   async function reloadDetail(id: string) {
     const latest = await fetchCompetitionDetail(id)
@@ -194,6 +208,29 @@ export function CompetitionDetailPage() {
     setActionSuccess(null)
   }
 
+  function updateCreateForm(
+    rowIndex: number,
+    updater: (previous: StandingForm) => StandingForm,
+  ) {
+    setCreateForms((previous) =>
+      previous.map((row, index) => (index === rowIndex ? updater(row) : row)),
+    )
+  }
+
+  function addCreateFormRow() {
+    setCreateForms((previous) => [...previous, createEmptyStandingForm()])
+  }
+
+  function removeCreateFormRow(rowIndex: number) {
+    setCreateForms((previous) => {
+      if (previous.length <= 1) {
+        return [createEmptyStandingForm()]
+      }
+
+      return previous.filter((_, index) => index !== rowIndex)
+    })
+  }
+
   async function handleCreateStanding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!competitionId || !detail) return
@@ -201,10 +238,47 @@ export function CompetitionDetailPage() {
     clearActionMessage()
     setActionLoading(true)
     try {
-      await createCompetition(toStandingDraft(detail.focus, createForm))
-      setCreateForm(initialStandingForm)
+      const rowsWithInput = createForms.flatMap((form, index) =>
+        hasStandingInput(form) ? [{ form, sourceRowIndex: index }] : [],
+      )
+
+      if (rowsWithInput.length === 0) {
+        throw new Error('请至少填写 1 条战绩')
+      }
+
+      const drafts = rowsWithInput.map((item) => {
+        try {
+          return toStandingDraft(detail.focus, item.form)
+        } catch (draftError) {
+          throw new Error(
+            `第 ${item.sourceRowIndex + 1} 条：${
+              draftError instanceof Error ? draftError.message : '格式错误'
+            }`,
+          )
+        }
+      })
+
+      let completedCount = 0
+      for (let index = 0; index < drafts.length; index += 1) {
+        try {
+          await createCompetition(drafts[index])
+          completedCount += 1
+        } catch (createError) {
+          const sourceRowIndex = rowsWithInput[index].sourceRowIndex + 1
+          const reason = createError instanceof Error ? createError.message : '新增失败'
+          throw new Error(
+            completedCount > 0
+              ? `前 ${completedCount} 条已成功，第 ${sourceRowIndex} 条失败：${reason}`
+              : `第 ${sourceRowIndex} 条提交失败：${reason}`,
+          )
+        }
+      }
+
+      setCreateForms([createEmptyStandingForm()])
       await reloadDetail(competitionId)
-      setActionSuccess('战绩新增成功')
+      setActionSuccess(
+        drafts.length > 1 ? `已批量新增 ${drafts.length} 条战绩` : '战绩新增成功',
+      )
     } catch (createError) {
       setActionError(createError instanceof Error ? createError.message : '新增战绩失败')
     } finally {
@@ -221,6 +295,7 @@ export function CompetitionDetailPage() {
     try {
       await updateCompetition(editingId, toStandingDraft(detail.focus, editForm))
       setEditingId(null)
+      setEditForm(createEmptyStandingForm())
       await reloadDetail(competitionId)
       setActionSuccess('战绩更新成功')
     } catch (updateError) {
@@ -245,6 +320,7 @@ export function CompetitionDetailPage() {
       await deleteCompetition(entry.id)
       if (editingId === entry.id) {
         setEditingId(null)
+        setEditForm(createEmptyStandingForm())
       }
       await reloadDetail(competitionId)
       setActionSuccess('战绩删除成功')
@@ -381,80 +457,137 @@ export function CompetitionDetailPage() {
                 <p className="status status-success">{actionSuccess}</p>
               ) : null}
 
-              <form className="form-grid" onSubmit={handleCreateStanding}>
-                <label>
-                  队伍名称
-                  <input
-                    value={createForm.teamName}
-                    onChange={(event) =>
-                      setCreateForm((prev) => ({ ...prev, teamName: event.target.value }))
-                    }
-                    placeholder="如：GUACM-1"
-                  />
-                </label>
-                <label>
-                  名次
-                  <input
-                    value={createForm.rank}
-                    onChange={(event) =>
-                      setCreateForm((prev) => ({ ...prev, rank: event.target.value }))
-                    }
-                    placeholder="如：42 / 银牌第 18"
-                  />
-                </label>
-                <label>
-                  奖项
-                  <input
-                    value={createForm.award}
-                    onChange={(event) =>
-                      setCreateForm((prev) => ({ ...prev, award: event.target.value }))
-                    }
-                    placeholder="如：金奖 / 银奖 / 一等奖"
-                  />
-                </label>
-                <label className="full-width">
-                  备注
-                  <textarea
-                    rows={2}
-                    value={createForm.remark}
-                    onChange={(event) =>
-                      setCreateForm((prev) => ({ ...prev, remark: event.target.value }))
-                    }
-                  />
-                </label>
-                <div className="full-width member-picker">
-                  <p>参赛队员（至少 1 人）</p>
-                  {members.length === 0 ? (
-                    <p className="status-hint">暂无队员，请先到管理后台创建队员。</p>
-                  ) : (
-                    <div className="member-picker-grid">
-                      {members.map((member) => (
-                        <label key={member.id} className="member-picker-item">
+              <form className="stack" onSubmit={handleCreateStanding}>
+                <div className="standing-form-list">
+                  {createForms.map((form, rowIndex) => (
+                    <article key={`standing-draft-${rowIndex}`} className="sub-panel standing-form-card">
+                      <div className="standing-form-head">
+                        <h4>战绩 #{rowIndex + 1}</h4>
+                        {createForms.length > 1 ? (
+                          <button
+                            type="button"
+                            className="btn btn-small btn-danger"
+                            onClick={() => removeCreateFormRow(rowIndex)}
+                            disabled={actionLoading}
+                          >
+                            删除本条
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div className="form-grid">
+                        <label>
+                          队伍名称
                           <input
-                            type="checkbox"
-                            checked={createForm.memberIds.includes(member.id)}
+                            value={form.teamName}
                             onChange={(event) =>
-                              setCreateForm((prev) => ({
-                                ...prev,
-                                memberIds: toggleMemberIds(
-                                  prev.memberIds,
-                                  member.id,
-                                  event.target.checked,
-                                ),
+                              updateCreateForm(rowIndex, (previous) => ({
+                                ...previous,
+                                teamName: event.target.value,
+                              }))
+                            }
+                            placeholder="如：GUACM-1"
+                          />
+                        </label>
+                        <label>
+                          名次
+                          <input
+                            value={form.rank}
+                            onChange={(event) =>
+                              updateCreateForm(rowIndex, (previous) => ({
+                                ...previous,
+                                rank: event.target.value,
+                              }))
+                            }
+                            placeholder="如：42 / 银牌第 18"
+                          />
+                        </label>
+                        <label>
+                          奖项
+                          <input
+                            value={form.award}
+                            onChange={(event) =>
+                              updateCreateForm(rowIndex, (previous) => ({
+                                ...previous,
+                                award: event.target.value,
+                              }))
+                            }
+                            placeholder="如：金奖 / 银奖 / 一等奖"
+                          />
+                        </label>
+                        <label className="full-width">
+                          备注
+                          <textarea
+                            rows={2}
+                            value={form.remark}
+                            onChange={(event) =>
+                              updateCreateForm(rowIndex, (previous) => ({
+                                ...previous,
+                                remark: event.target.value,
                               }))
                             }
                           />
-                          <span>
-                            {member.name}（{member.cohortYear}级）
-                          </span>
                         </label>
-                      ))}
-                    </div>
-                  )}
+                        <div className="full-width member-picker">
+                          <p>参赛队员（至少 1 人）</p>
+                          {members.length === 0 ? (
+                            <p className="status-hint">暂无队员，请先到管理后台创建队员。</p>
+                          ) : (
+                            <div className="member-picker-grid">
+                              {members.map((member) => (
+                                <label key={`${rowIndex}-${member.id}`} className="member-picker-item">
+                                  <input
+                                    type="checkbox"
+                                    checked={form.memberIds.includes(member.id)}
+                                    onChange={(event) =>
+                                      updateCreateForm(rowIndex, (previous) => ({
+                                        ...previous,
+                                        memberIds: toggleMemberIds(
+                                          previous.memberIds,
+                                          member.id,
+                                          event.target.checked,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                  <span>
+                                    {member.name}（{member.cohortYear}级）
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-                <button className="btn btn-solid" disabled={actionLoading}>
-                  {actionLoading ? '提交中...' : '新增战绩'}
-                </button>
+
+                <div className="action-row">
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={addCreateFormRow}
+                    disabled={actionLoading}
+                  >
+                    新增一条战绩行
+                  </button>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => setCreateForms([createEmptyStandingForm()])}
+                    disabled={actionLoading}
+                  >
+                    清空录入
+                  </button>
+                  <button className="btn btn-solid" disabled={actionLoading}>
+                    {actionLoading
+                      ? '提交中...'
+                      : createForms.length > 1
+                        ? '批量新增战绩'
+                        : '新增战绩'}
+                  </button>
+                </div>
               </form>
 
               {editingId ? (
@@ -534,7 +667,10 @@ export function CompetitionDetailPage() {
                     <button
                       type="button"
                       className="btn"
-                      onClick={() => setEditingId(null)}
+                      onClick={() => {
+                        setEditingId(null)
+                        setEditForm(createEmptyStandingForm())
+                      }}
                       disabled={actionLoading}
                     >
                       取消

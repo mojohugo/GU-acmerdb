@@ -715,6 +715,23 @@ tbody tr:hover {
   gap: 10px;
 }
 
+.standing-form-list {
+  display: grid;
+  gap: 12px;
+}
+
+.standing-form-card {
+  gap: 12px;
+}
+
+.standing-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .cohort-block {
   border: 1px solid rgba(133, 121, 182, 0.23);
   border-radius: 16px;

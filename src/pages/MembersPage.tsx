@@ -116,9 +116,9 @@ function getCurrentDateLabel() {
   return `${year}${month}${day}`
 }
 
-function exportMembersAsCsv(members: Member[]) {
+function exportMembersAsCsv(members: Member[], exportScope: 'page' | 'all') {
   downloadCsv({
-    filename: `gu-acmerdb-members-page-${getCurrentDateLabel()}.csv`,
+    filename: `gu-acmerdb-members-${exportScope}-${getCurrentDateLabel()}.csv`,
     headers: ['姓名', '届别', 'handle', '专业', '状态'],
     rows: members.map((member) => [
       member.name,
@@ -168,6 +168,7 @@ export function MembersPage() {
 
   const [loading, setLoading] = useState(() => initialMembersPageCache === null)
   const [error, setError] = useState<string | null>(null)
+  const [exportingAll, setExportingAll] = useState(false)
 
   const debouncedQuery = useDebouncedValue(query, 300)
 
@@ -316,6 +317,45 @@ export function MembersPage() {
     return `第 ${start}-${end} 条 / 共 ${total} 名队员`
   }, [page, pageSize, total])
 
+  async function handleExportAllFilteredMembers() {
+    if (!isSupabaseConfigured || total <= 0) {
+      return
+    }
+
+    setExportingAll(true)
+    setError(null)
+
+    const exportPageSize = 100
+    const baseQuery = buildMembersPageQuery({
+      query: debouncedQuery,
+      cohortYear,
+      statusFilter,
+      page: 1,
+      pageSize: exportPageSize,
+      sortBy,
+      sortDirection,
+    })
+
+    try {
+      const firstPage = await fetchMembersPage(baseQuery)
+      const allMembers = [...firstPage.items]
+
+      for (let currentPage = 2; currentPage <= firstPage.pageCount; currentPage += 1) {
+        const pageResult = await fetchMembersPage({
+          ...baseQuery,
+          page: currentPage,
+        })
+        allMembers.push(...pageResult.items)
+      }
+
+      exportMembersAsCsv(allMembers, 'all')
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出失败')
+    } finally {
+      setExportingAll(false)
+    }
+  }
+
   return (
     <div className="stack">
       <section className="panel">
@@ -436,9 +476,17 @@ export function MembersPage() {
             className="btn"
             type="button"
             disabled={loading || Boolean(error) || members.length === 0}
-            onClick={() => exportMembersAsCsv(members)}
+            onClick={() => exportMembersAsCsv(members, 'page')}
           >
             导出当前页 CSV
+          </button>
+          <button
+            className="btn"
+            type="button"
+            disabled={loading || Boolean(error) || total === 0 || exportingAll}
+            onClick={() => void handleExportAllFilteredMembers()}
+          >
+            {exportingAll ? '导出中...' : '导出全部筛选 CSV'}
           </button>
           {!loading && !error ? <span className="status-hint">{pageSummary}</span> : null}
         </div>
@@ -510,7 +558,7 @@ export function MembersPage() {
         ) : null}
 
         <p className="todo-note">
-          TODO: 后续增加“导出全部筛选结果（跨页）+ 高级检索条件保存 + 批量操作”能力。
+          TODO: 后续增加“高级检索条件保存 + 批量操作 + 异步导出任务中心”能力。
         </p>
       </section>
     </div>
