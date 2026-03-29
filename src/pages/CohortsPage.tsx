@@ -243,7 +243,6 @@ export function CohortsPage() {
                     时间: {competition.happenedAt ?? '-'}
                     {competition.contestLevel ? ` · ${competition.contestLevel}` : ''}
                   </p>
-                  <p>点击标题可查看该比赛完整队伍与获奖名单。</p>
                   {competition.remark ? <p>备注: {competition.remark}</p> : null}
                 </article>
               ))}

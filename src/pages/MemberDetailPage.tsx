@@ -80,7 +80,6 @@ export function MemberDetailPage() {
           <section className="panel">
             <div className="panel-header">
               <h2>{detail.name}</h2>
-              <p>ID: {detail.id}</p>
             </div>
             <div className="detail-grid">
               <article>
