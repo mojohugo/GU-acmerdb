@@ -1170,6 +1170,56 @@ function toSafeFileSize(size: number | undefined) {
   return rounded >= 0 ? rounded : undefined
 }
 
+async function formatFunctionInvokeError(error: unknown) {
+  const fallback =
+    error instanceof Error ? error.message : '上传签名服务调用失败，请检查 Edge Function 日志'
+
+  if (!error || typeof error !== 'object') {
+    return fallback
+  }
+
+  const context = (error as { context?: unknown }).context
+  if (!(context instanceof Response)) {
+    return fallback
+  }
+
+  const statusText = context.statusText?.trim()
+  const statusPart = statusText
+    ? `上传签名服务返回 HTTP ${context.status} ${statusText}`
+    : `上传签名服务返回 HTTP ${context.status}`
+
+  let detail = ''
+  try {
+    const response = context.clone()
+    const contentType = response.headers.get('content-type') || ''
+
+    if (contentType.includes('application/json')) {
+      const payload = await response.json()
+      if (payload && typeof payload === 'object') {
+        const payloadObject = payload as Record<string, unknown>
+        if (typeof payloadObject.error === 'string' && payloadObject.error.trim().length > 0) {
+          detail = payloadObject.error.trim()
+        } else if (
+          typeof payloadObject.message === 'string' &&
+          payloadObject.message.trim().length > 0
+        ) {
+          detail = payloadObject.message.trim()
+        } else {
+          detail = JSON.stringify(payloadObject)
+        }
+      } else if (typeof payload === 'string') {
+        detail = payload.trim()
+      }
+    } else {
+      detail = (await response.text()).trim()
+    }
+  } catch {
+    detail = ''
+  }
+
+  return detail.length > 0 ? `${statusPart}: ${detail}` : statusPart
+}
+
 export async function createCompetitionMedia(
   input: CreateCompetitionMediaInput,
 ): Promise<CompetitionMedia> {
@@ -1247,7 +1297,8 @@ export async function uploadCompetitionMedia(
     if (/404|not found|Failed to send/i.test(message)) {
       throw new Error('未找到 oss-sign-upload 函数，请先在 Supabase 部署该函数')
     }
-    throw signError
+
+    throw new Error(await formatFunctionInvokeError(signError))
   }
 
   if (!signedData?.uploadUrl || !signedData.publicUrl || !signedData.objectKey) {
