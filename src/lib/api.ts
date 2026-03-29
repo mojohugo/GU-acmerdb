@@ -1220,6 +1220,20 @@ async function formatFunctionInvokeError(error: unknown) {
   return detail.length > 0 ? `${statusPart}: ${detail}` : statusPart
 }
 
+function getFunctionErrorStatus(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return undefined
+  }
+
+  const context = (error as { context?: unknown }).context
+  return context instanceof Response ? context.status : undefined
+}
+
+function isInvalidJwtFunctionError(error: unknown, message: string) {
+  const normalizedMessage = message.toLowerCase()
+  return getFunctionErrorStatus(error) === 401 || /invalid jwt/.test(normalizedMessage)
+}
+
 export async function createCompetitionMedia(
   input: CreateCompetitionMediaInput,
 ): Promise<CompetitionMedia> {
@@ -1277,8 +1291,8 @@ export async function uploadCompetitionMedia(
   const contentType = normalizeContentType(input.file.type)
   const fileSize = toSafeFileSize(input.file.size) ?? 0
 
-  const { data: signedData, error: signError } =
-    await client.functions.invoke<SignedOssUploadResponse>('oss-sign-upload', {
+  const invokeSignUpload = (token: string) =>
+    client.functions.invoke<SignedOssUploadResponse>('oss-sign-upload', {
       body: {
         competitionId: input.competitionId,
         mediaType: input.mediaType,
@@ -1288,9 +1302,26 @@ export async function uploadCompetitionMedia(
         fileSize,
       },
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     })
+
+  let { data: signedData, error: signError } = await invokeSignUpload(accessToken)
+
+  if (signError) {
+    const initialMessage = await formatFunctionInvokeError(signError)
+
+    if (isInvalidJwtFunctionError(signError, initialMessage)) {
+      const { data: refreshedSessionData, error: refreshError } = await client.auth.refreshSession()
+      const refreshedToken = refreshedSessionData.session?.access_token
+
+      if (!refreshError && refreshedToken) {
+        const retried = await invokeSignUpload(refreshedToken)
+        signedData = retried.data
+        signError = retried.error
+      }
+    }
+  }
 
   if (signError) {
     const message = signError.message || ''
@@ -1298,7 +1329,18 @@ export async function uploadCompetitionMedia(
       throw new Error('未找到 oss-sign-upload 函数，请先在 Supabase 部署该函数')
     }
 
-    throw new Error(await formatFunctionInvokeError(signError))
+    const formattedMessage = await formatFunctionInvokeError(signError)
+    if (isInvalidJwtFunctionError(signError, formattedMessage)) {
+      try {
+        await client.auth.signOut()
+      } catch {
+        // ignore
+      }
+
+      throw new Error('登录态已失效，请重新登录管理员账号后再上传')
+    }
+
+    throw new Error(formattedMessage)
   }
 
   if (!signedData?.uploadUrl || !signedData.publicUrl || !signedData.objectKey) {
