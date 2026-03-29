@@ -103,9 +103,9 @@ export function HomePage() {
           参考 OIerDb 的浏览体验，支持按成员与时间线快速查看比赛记录与成绩明细。
         </p>
         <div className="hero-points">
-          <span>按时间线回看战绩</span>
-          <span>按成员查看完整履历</span>
-          <span>比赛内统一维护队伍奖项</span>
+          <span>时间线回看</span>
+          <span>成员履历检索</span>
+          <span>比赛内维护战绩</span>
         </div>
         <div className="hero-actions">
           <Link className="btn btn-solid" to="/members">
