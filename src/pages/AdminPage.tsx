@@ -5,6 +5,7 @@ import { ContestTypeTag } from '../components/ContestTypeTag'
 import {
   createCompetition,
   createMember,
+  deleteCompetition,
   deleteMember,
   fetchCohortOverview,
   fetchMembers,
@@ -13,6 +14,7 @@ import {
   peekMembers,
   signInAsAdmin,
   signOutAdmin,
+  updateCompetition,
   updateMember,
 } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
@@ -40,6 +42,19 @@ type CompetitionForm = {
   contestLevel: string
   happenedAt: string
   remark: string
+}
+
+type CompetitionGroup = {
+  key: string
+  id: string
+  title: string
+  category: ContestCategory
+  seasonYear: number
+  happenedAt: string | null
+  contestLevel: string | null
+  remark: string | null
+  standingsCount: number
+  entries: Competition[]
 }
 
 const initialMemberForm: MemberForm = {
@@ -114,12 +129,12 @@ export function AdminPage() {
 
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editMemberForm, setEditMemberForm] = useState<MemberForm>(initialMemberForm)
+  const [editingCompetitionKey, setEditingCompetitionKey] = useState<string | null>(null)
+  const [editCompetitionForm, setEditCompetitionForm] =
+    useState<CompetitionForm>(initialCompetitionForm)
 
   const competitionGroups = useMemo(() => {
-    const map = new Map<
-      string,
-      { id: string; title: string; category: ContestCategory; happenedAt: string | null; contestLevel: string | null; standingsCount: number }
-    >()
+    const map = new Map<string, CompetitionGroup>()
 
     for (const item of competitions) {
       const groupKey = [
@@ -139,22 +154,33 @@ export function AdminPage() {
       const existed = map.get(groupKey)
       if (!existed) {
         map.set(groupKey, {
+          key: groupKey,
           id: item.id,
           title: item.title,
           category: item.category,
+          seasonYear: item.seasonYear,
           happenedAt: item.happenedAt,
           contestLevel: item.contestLevel,
+          remark: item.remark,
           standingsCount: hasStanding ? 1 : 0,
+          entries: [item],
         })
-      } else if (hasStanding) {
-        existed.standingsCount += 1
+      } else {
+        existed.entries.push(item)
+        if (hasStanding) {
+          existed.standingsCount += 1
+        }
       }
     }
 
     return [...map.values()].sort((a, b) => {
       const aTime = a.happenedAt ? Date.parse(a.happenedAt) : 0
       const bTime = b.happenedAt ? Date.parse(b.happenedAt) : 0
-      return bTime - aTime
+      if (aTime !== bTime) {
+        return bTime - aTime
+      }
+
+      return b.seasonYear - a.seasonYear
     })
   }, [competitions])
 
@@ -243,6 +269,7 @@ export function AdminPage() {
       setMembers([])
       setCompetitions([])
       setEditingMemberId(null)
+      setEditingCompetitionKey(null)
       setSuccess('已退出登录')
     } catch (e) {
       setError(e instanceof Error ? e.message : '退出失败')
@@ -300,6 +327,43 @@ export function AdminPage() {
     }
   }
 
+  async function submitUpdateCompetitionInfo(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editingCompetitionKey) return
+
+    const targetGroup = competitionGroups.find((group) => group.key === editingCompetitionKey)
+    if (!targetGroup) {
+      setError('未找到待编辑比赛，请刷新后重试')
+      return
+    }
+
+    clearMsg()
+    setSubmitting(true)
+    try {
+      const baseDraft = toCompetitionDraft(editCompetitionForm)
+
+      await Promise.all(
+        targetGroup.entries.map((entry) =>
+          updateCompetition(entry.id, {
+            ...baseDraft,
+            teamName: entry.teamName ?? undefined,
+            rank: entry.rank ?? undefined,
+            award: entry.award ?? undefined,
+            memberIds: entry.participants.map((member) => member.id),
+          }),
+        ),
+      )
+
+      setEditingCompetitionKey(null)
+      await loadData()
+      setSuccess('比赛信息更新成功')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '更新比赛信息失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   async function onDeleteMember(member: Member) {
     if (!window.confirm(`确定删除队员「${member.name}」吗？`)) return
     clearMsg()
@@ -311,6 +375,25 @@ export function AdminPage() {
       setSuccess('队员删除成功')
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除队员失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function onDeleteCompetitionGroup(group: CompetitionGroup) {
+    if (!window.confirm(`确定删除比赛「${group.title}」及其全部战绩吗？`)) return
+
+    clearMsg()
+    setSubmitting(true)
+    try {
+      await Promise.all(group.entries.map((entry) => deleteCompetition(entry.id)))
+      if (editingCompetitionKey === group.key) {
+        setEditingCompetitionKey(null)
+      }
+      await loadData()
+      setSuccess('比赛删除成功')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '删除比赛失败')
     } finally {
       setSubmitting(false)
     }
@@ -627,7 +710,7 @@ export function AdminPage() {
           <section className="panel">
             <div className="panel-header">
               <h3>比赛列表</h3>
-              <p>点击“管理战绩”进入比赛详情页，再新增/编辑该比赛下的队伍和奖项。</p>
+              <p>可直接编辑/删除比赛基础信息；战绩请点“管理战绩”进入详情页维护。</p>
             </div>
             <div className="table-scroll">
               <table>
@@ -659,6 +742,30 @@ export function AdminPage() {
                           >
                             管理战绩
                           </Link>
+                          <button
+                            type="button"
+                            className="btn btn-small"
+                            onClick={() => {
+                              setEditingCompetitionKey(competition.key)
+                              setEditCompetitionForm({
+                                title: competition.title,
+                                category: competition.category,
+                                seasonYear: String(competition.seasonYear),
+                                contestLevel: competition.contestLevel ?? '',
+                                happenedAt: competition.happenedAt ?? '',
+                                remark: competition.remark ?? '',
+                              })
+                            }}
+                          >
+                            编辑比赛
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-small btn-danger"
+                            onClick={() => void onDeleteCompetitionGroup(competition)}
+                          >
+                            删除比赛
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -666,6 +773,93 @@ export function AdminPage() {
                 </tbody>
               </table>
             </div>
+
+            {editingCompetitionKey ? (
+              <form className="form-grid inline-wrap" onSubmit={submitUpdateCompetitionInfo}>
+                <h4 className="full-width">编辑比赛基础信息</h4>
+                <label>
+                  赛事名称
+                  <input
+                    value={editCompetitionForm.title}
+                    onChange={(e) =>
+                      setEditCompetitionForm((p) => ({ ...p, title: e.target.value }))
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  赛事分类
+                  <select
+                    value={editCompetitionForm.category}
+                    onChange={(e) =>
+                      setEditCompetitionForm((p) => ({
+                        ...p,
+                        category: e.target.value as ContestCategory,
+                      }))
+                    }
+                  >
+                    {CONTEST_TYPE_ORDER.map((type) => (
+                      <option key={type} value={type}>
+                        {CONTEST_TYPE_LABELS[type]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  赛季年份
+                  <input
+                    type="number"
+                    value={editCompetitionForm.seasonYear}
+                    onChange={(e) =>
+                      setEditCompetitionForm((p) => ({ ...p, seasonYear: e.target.value }))
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  比赛级别
+                  <input
+                    value={editCompetitionForm.contestLevel}
+                    onChange={(e) =>
+                      setEditCompetitionForm((p) => ({ ...p, contestLevel: e.target.value }))
+                    }
+                    placeholder="如：国赛 / 省赛 / 校赛"
+                  />
+                </label>
+                <label>
+                  日期
+                  <input
+                    type="date"
+                    value={editCompetitionForm.happenedAt}
+                    onChange={(e) =>
+                      setEditCompetitionForm((p) => ({ ...p, happenedAt: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="full-width">
+                  备注
+                  <textarea
+                    rows={2}
+                    value={editCompetitionForm.remark}
+                    onChange={(e) =>
+                      setEditCompetitionForm((p) => ({ ...p, remark: e.target.value }))
+                    }
+                  />
+                </label>
+                <div className="action-row full-width">
+                  <button className="btn btn-solid" disabled={submitting}>
+                    更新比赛
+                  </button>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => setEditingCompetitionKey(null)}
+                  >
+                    取消
+                  </button>
+                </div>
+              </form>
+            ) : null}
 
             <p className="todo-note">
               TODO: 后台待补充批量导入、同一比赛多队伍批量录入、比赛主档案与战绩拆表、图片上传、证书附件。
