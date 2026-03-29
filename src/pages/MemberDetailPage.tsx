@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
-import { fetchMemberDetail } from '../lib/api'
+import { fetchMemberDetail, peekMemberDetail } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { Competition, ContestCategory, MemberDetail } from '../types'
@@ -28,8 +28,9 @@ function groupByCategory(items: Competition[]) {
 
 export function MemberDetailPage() {
   const { memberId } = useParams()
-  const [detail, setDetail] = useState<MemberDetail | null>(null)
-  const [loading, setLoading] = useState(true)
+  const cachedDetail = memberId ? peekMemberDetail(memberId) : null
+  const [detail, setDetail] = useState<MemberDetail | null>(() => cachedDetail)
+  const [loading, setLoading] = useState(() => !cachedDetail)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -52,7 +53,13 @@ export function MemberDetailPage() {
         return
       }
 
-      setLoading(true)
+      const cached = peekMemberDetail(memberId)
+      if (cached) {
+        setDetail(cached)
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
       setError(null)
 
       try {
@@ -62,7 +69,7 @@ export function MemberDetailPage() {
         }
       } catch (loadError) {
         if (!disposed) {
-          setError(loadError instanceof Error ? loadError.message : '加载失败')
+          setError(cached ? null : loadError instanceof Error ? loadError.message : '加载失败')
         }
       } finally {
         if (!disposed) {

@@ -1,5 +1,11 @@
 import type { Session } from '@supabase/supabase-js'
 import { CONTEST_TYPE_ORDER } from './constants'
+import {
+  fetchWithCache,
+  invalidateCacheByPrefix,
+  invalidateCacheKey,
+  peekCachedValue,
+} from './queryCache'
 import { getSupabaseClient } from './supabase'
 import type {
   AdminProfile,
@@ -12,6 +18,12 @@ import type {
   MemberDraft,
   MemberMini,
 } from '../types'
+
+export type MemberFilters = {
+  query?: string
+  cohortYear?: number
+  isActive?: boolean
+}
 
 const competitionFields = [
   'id',
@@ -27,6 +39,50 @@ const competitionFields = [
   'remark',
   'created_at',
 ].join(',')
+
+const MEMBERS_CACHE_PREFIX = 'members:'
+const AVAILABLE_COHORTS_CACHE_KEY = 'available-cohorts'
+const MEMBER_DETAIL_CACHE_PREFIX = 'member-detail:'
+const COHORT_OVERVIEW_CACHE_KEY = 'cohort-overview'
+const HOME_STATS_CACHE_KEY = 'home-stats'
+
+const MEMBERS_CACHE_TTL_MS = 60_000
+const AVAILABLE_COHORTS_CACHE_TTL_MS = 5 * 60_000
+const MEMBER_DETAIL_CACHE_TTL_MS = 2 * 60_000
+const COHORT_OVERVIEW_CACHE_TTL_MS = 60_000
+const HOME_STATS_CACHE_TTL_MS = 60_000
+
+function normalizeMembersFilters(filters?: MemberFilters) {
+  return {
+    query: filters?.query?.trim().toLowerCase() ?? '',
+    cohortYear: filters?.cohortYear ?? null,
+    isActive:
+      filters?.isActive === undefined ? 'all' : filters.isActive ? 'active' : 'inactive',
+  }
+}
+
+function toMembersCacheKey(filters?: MemberFilters) {
+  const normalized = normalizeMembersFilters(filters)
+  return `${MEMBERS_CACHE_PREFIX}${JSON.stringify(normalized)}`
+}
+
+function toMemberDetailCacheKey(memberId: string) {
+  return `${MEMBER_DETAIL_CACHE_PREFIX}${memberId}`
+}
+
+function invalidateMemberRelatedCache() {
+  invalidateCacheByPrefix(MEMBERS_CACHE_PREFIX)
+  invalidateCacheKey(AVAILABLE_COHORTS_CACHE_KEY)
+  invalidateCacheByPrefix(MEMBER_DETAIL_CACHE_PREFIX)
+  invalidateCacheKey(COHORT_OVERVIEW_CACHE_KEY)
+  invalidateCacheKey(HOME_STATS_CACHE_KEY)
+}
+
+function invalidateCompetitionRelatedCache() {
+  invalidateCacheKey(COHORT_OVERVIEW_CACHE_KEY)
+  invalidateCacheByPrefix(MEMBER_DETAIL_CACHE_PREFIX)
+  invalidateCacheKey(HOME_STATS_CACHE_KEY)
+}
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' ? value : null
@@ -105,224 +161,281 @@ function sortCompetitionDesc(a: Competition, b: Competition): number {
   return b.seasonYear - a.seasonYear
 }
 
-export async function fetchMembers(filters?: {
-  query?: string
-  cohortYear?: number
-  isActive?: boolean
-}) {
-  const client = getSupabaseClient()
+export function peekMembers(filters?: MemberFilters) {
+  return peekCachedValue<Member[]>(toMembersCacheKey(filters))
+}
 
-  let query = client
-    .from('members')
-    .select('*')
-    .order('cohort_year', { ascending: false })
-    .order('name', { ascending: true })
+export function peekAvailableCohorts() {
+  return peekCachedValue<number[]>(AVAILABLE_COHORTS_CACHE_KEY)
+}
 
-  if (filters?.cohortYear) {
-    query = query.eq('cohort_year', filters.cohortYear)
-  }
+export function peekMemberDetail(memberId: string) {
+  return peekCachedValue<MemberDetail>(toMemberDetailCacheKey(memberId))
+}
 
-  if (filters?.isActive !== undefined) {
-    query = query.eq('is_active', filters.isActive)
-  }
+export function peekCohortOverview() {
+  return peekCachedValue<Competition[]>(COHORT_OVERVIEW_CACHE_KEY)
+}
 
-  if (filters?.query && filters.query.trim().length > 0) {
-    const keyword = filters.query.trim()
-    query = query.or(`name.ilike.%${keyword}%,handle.ilike.%${keyword}%`)
-  }
+export function peekHomeStats() {
+  return peekCachedValue<HomeStats>(HOME_STATS_CACHE_KEY)
+}
 
-  const { data, error } = await query
+export function warmPublicData() {
+  return Promise.allSettled([
+    fetchHomeStats(),
+    fetchMembers(),
+    fetchAvailableCohorts(),
+    fetchCohortOverview(),
+  ])
+}
 
-  if (error) {
-    throw error
-  }
+export async function fetchMembers(filters?: MemberFilters) {
+  const cacheKey = toMembersCacheKey(filters)
 
-  return (data ?? []).map((row) => mapMember(row as Record<string, unknown>))
+  return fetchWithCache({
+    key: cacheKey,
+    ttlMs: MEMBERS_CACHE_TTL_MS,
+    fetcher: async () => {
+      const client = getSupabaseClient()
+
+      let membersQuery = client
+        .from('members')
+        .select('*')
+        .order('cohort_year', { ascending: false })
+        .order('name', { ascending: true })
+
+      if (filters?.cohortYear) {
+        membersQuery = membersQuery.eq('cohort_year', filters.cohortYear)
+      }
+
+      if (filters?.isActive !== undefined) {
+        membersQuery = membersQuery.eq('is_active', filters.isActive)
+      }
+
+      if (filters?.query && filters.query.trim().length > 0) {
+        const keyword = filters.query.trim()
+        membersQuery = membersQuery.or(`name.ilike.%${keyword}%,handle.ilike.%${keyword}%`)
+      }
+
+      const { data, error } = await membersQuery
+
+      if (error) {
+        throw error
+      }
+
+      return (data ?? []).map((row) => mapMember(row as Record<string, unknown>))
+    },
+  })
 }
 
 export async function fetchAvailableCohorts() {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('members')
-    .select('cohort_year')
-    .order('cohort_year', { ascending: false })
+  return fetchWithCache({
+    key: AVAILABLE_COHORTS_CACHE_KEY,
+    ttlMs: AVAILABLE_COHORTS_CACHE_TTL_MS,
+    fetcher: async () => {
+      const client = getSupabaseClient()
+      const { data, error } = await client
+        .from('members')
+        .select('cohort_year')
+        .order('cohort_year', { ascending: false })
 
-  if (error) {
-    throw error
-  }
+      if (error) {
+        throw error
+      }
 
-  const all = (data ?? [])
-    .map((row) => asNumber((row as Record<string, unknown>).cohort_year))
-    .filter((year): year is number => year !== null && year > 0)
+      const all = (data ?? [])
+        .map((row) => asNumber((row as Record<string, unknown>).cohort_year))
+        .filter((year): year is number => year !== null && year > 0)
 
-  return [...new Set(all)]
+      return [...new Set(all)]
+    },
+  })
 }
 
 export async function fetchMemberDetail(memberId: string): Promise<MemberDetail> {
-  const client = getSupabaseClient()
-  const { data: memberRow, error: memberError } = await client
-    .from('members')
-    .select('*')
-    .eq('id', memberId)
-    .single()
+  return fetchWithCache({
+    key: toMemberDetailCacheKey(memberId),
+    ttlMs: MEMBER_DETAIL_CACHE_TTL_MS,
+    fetcher: async () => {
+      const client = getSupabaseClient()
+      const { data: memberRow, error: memberError } = await client
+        .from('members')
+        .select('*')
+        .eq('id', memberId)
+        .single()
 
-  if (memberError) {
-    throw memberError
-  }
+      if (memberError) {
+        throw memberError
+      }
 
-  const { data: links, error: linkError } = await client
-    .from('competition_members')
-    .select('competition_id')
-    .eq('member_id', memberId)
+      const { data: links, error: linkError } = await client
+        .from('competition_members')
+        .select('competition_id')
+        .eq('member_id', memberId)
 
-  if (linkError) {
-    throw linkError
-  }
+      if (linkError) {
+        throw linkError
+      }
 
-  const competitionIds = (links ?? [])
-    .map((row) => asString((row as Record<string, unknown>).competition_id))
-    .filter((id): id is string => Boolean(id))
+      const competitionIds = (links ?? [])
+        .map((row) => asString((row as Record<string, unknown>).competition_id))
+        .filter((id): id is string => Boolean(id))
 
-  let competitions: Competition[] = []
+      let competitions: Competition[] = []
 
-  if (competitionIds.length > 0) {
-    const { data: competitionRows, error: competitionError } = await client
-      .from('competitions')
-      .select(competitionFields)
-      .in('id', competitionIds)
+      if (competitionIds.length > 0) {
+        const { data: competitionRows, error: competitionError } = await client
+          .from('competitions')
+          .select(competitionFields)
+          .in('id', competitionIds)
 
-    if (competitionError) {
-      throw competitionError
-    }
+        if (competitionError) {
+          throw competitionError
+        }
 
-    competitions = (competitionRows ?? [])
-      .map((row) => mapCompetition(row as unknown as Record<string, unknown>))
-      .sort(sortCompetitionDesc)
-  }
+        competitions = (competitionRows ?? [])
+          .map((row) => mapCompetition(row as unknown as Record<string, unknown>))
+          .sort(sortCompetitionDesc)
+      }
 
-  return {
-    ...mapMember(memberRow as unknown as Record<string, unknown>),
-    competitions,
-  }
+      return {
+        ...mapMember(memberRow as unknown as Record<string, unknown>),
+        competitions,
+      }
+    },
+  })
 }
 
 export async function fetchCohortOverview() {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('competitions')
-    .select(competitionFields)
-    .order('happened_at', { ascending: false })
-    .order('season_year', { ascending: false })
-
-  if (error) {
-    throw error
-  }
-
-  const { data: links, error: linkError } = await client
-    .from('competition_members')
-    .select('competition_id,member_id')
-
-  if (linkError) {
-    throw linkError
-  }
-
-  const memberIds = [...new Set(
-    (links ?? [])
-      .map((row) => asString((row as Record<string, unknown>).member_id))
-      .filter((id): id is string => Boolean(id)),
-  )]
-
-  const memberMap = new Map<string, MemberMini>()
-  if (memberIds.length > 0) {
-    const { data: members, error: membersError } = await client
-      .from('members')
-      .select('id,name,cohort_year')
-      .in('id', memberIds)
-
-    if (membersError) {
-      throw membersError
-    }
-
-    for (const row of members ?? []) {
-      const mapped = mapMemberMini(row as unknown as Record<string, unknown>)
-      if (mapped.id) {
-        memberMap.set(mapped.id, mapped)
-      }
-    }
-  }
-
-  const participantsByCompetition = new Map<string, MemberMini[]>()
-  for (const row of links ?? []) {
-    const link = row as Record<string, unknown>
-    const competitionId = asString(link.competition_id)
-    const memberId = asString(link.member_id)
-    const member = memberId ? memberMap.get(memberId) : undefined
-
-    if (!competitionId || !member) {
-      continue
-    }
-
-    if (!participantsByCompetition.has(competitionId)) {
-      participantsByCompetition.set(competitionId, [])
-    }
-
-    participantsByCompetition.get(competitionId)?.push(member)
-  }
-
-  return (data ?? [])
-    .map((row) => {
-      const mapped = mapCompetition(row as unknown as Record<string, unknown>)
-      return {
-        ...mapped,
-        participants: participantsByCompetition.get(mapped.id) ?? [],
-      }
-    })
-    .sort(sortCompetitionDesc)
-}
-
-export async function fetchHomeStats(): Promise<HomeStats> {
-  const client = getSupabaseClient()
-
-  const [membersRes, activeMembersRes, competitionsRes, latestRes] =
-    await Promise.all([
-      client.from('members').select('id', { count: 'exact', head: true }),
-      client
-        .from('members')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_active', true),
-      client.from('competitions').select('id', { count: 'exact', head: true }),
-      client
+  return fetchWithCache({
+    key: COHORT_OVERVIEW_CACHE_KEY,
+    ttlMs: COHORT_OVERVIEW_CACHE_TTL_MS,
+    fetcher: async () => {
+      const client = getSupabaseClient()
+      const { data, error } = await client
         .from('competitions')
         .select(competitionFields)
         .order('happened_at', { ascending: false })
         .order('season_year', { ascending: false })
-        .limit(8),
-    ])
 
-  if (membersRes.error) {
-    throw membersRes.error
-  }
+      if (error) {
+        throw error
+      }
 
-  if (activeMembersRes.error) {
-    throw activeMembersRes.error
-  }
+      const { data: links, error: linkError } = await client
+        .from('competition_members')
+        .select('competition_id,member_id')
 
-  if (competitionsRes.error) {
-    throw competitionsRes.error
-  }
+      if (linkError) {
+        throw linkError
+      }
 
-  if (latestRes.error) {
-    throw latestRes.error
-  }
+      const memberIds = [...new Set(
+        (links ?? [])
+          .map((row) => asString((row as Record<string, unknown>).member_id))
+          .filter((id): id is string => Boolean(id)),
+      )]
 
-  return {
-    membersCount: membersRes.count ?? 0,
-    activeMembersCount: activeMembersRes.count ?? 0,
-    competitionsCount: competitionsRes.count ?? 0,
-    latestCompetitions: (latestRes.data ?? [])
-      .map((row) => mapCompetition(row as unknown as Record<string, unknown>))
-      .sort(sortCompetitionDesc),
-  }
+      const memberMap = new Map<string, MemberMini>()
+      if (memberIds.length > 0) {
+        const { data: members, error: membersError } = await client
+          .from('members')
+          .select('id,name,cohort_year')
+          .in('id', memberIds)
+
+        if (membersError) {
+          throw membersError
+        }
+
+        for (const row of members ?? []) {
+          const mapped = mapMemberMini(row as unknown as Record<string, unknown>)
+          if (mapped.id) {
+            memberMap.set(mapped.id, mapped)
+          }
+        }
+      }
+
+      const participantsByCompetition = new Map<string, MemberMini[]>()
+      for (const row of links ?? []) {
+        const link = row as Record<string, unknown>
+        const competitionId = asString(link.competition_id)
+        const memberId = asString(link.member_id)
+        const member = memberId ? memberMap.get(memberId) : undefined
+
+        if (!competitionId || !member) {
+          continue
+        }
+
+        if (!participantsByCompetition.has(competitionId)) {
+          participantsByCompetition.set(competitionId, [])
+        }
+
+        participantsByCompetition.get(competitionId)?.push(member)
+      }
+
+      return (data ?? [])
+        .map((row) => {
+          const mapped = mapCompetition(row as unknown as Record<string, unknown>)
+          return {
+            ...mapped,
+            participants: participantsByCompetition.get(mapped.id) ?? [],
+          }
+        })
+        .sort(sortCompetitionDesc)
+    },
+  })
+}
+
+export async function fetchHomeStats(): Promise<HomeStats> {
+  return fetchWithCache({
+    key: HOME_STATS_CACHE_KEY,
+    ttlMs: HOME_STATS_CACHE_TTL_MS,
+    fetcher: async () => {
+      const client = getSupabaseClient()
+
+      const [membersRes, activeMembersRes, competitionsRes, latestRes] =
+        await Promise.all([
+          client.from('members').select('id', { count: 'exact', head: true }),
+          client
+            .from('members')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_active', true),
+          client.from('competitions').select('id', { count: 'exact', head: true }),
+          client
+            .from('competitions')
+            .select(competitionFields)
+            .order('happened_at', { ascending: false })
+            .order('season_year', { ascending: false })
+            .limit(8),
+        ])
+
+      if (membersRes.error) {
+        throw membersRes.error
+      }
+
+      if (activeMembersRes.error) {
+        throw activeMembersRes.error
+      }
+
+      if (competitionsRes.error) {
+        throw competitionsRes.error
+      }
+
+      if (latestRes.error) {
+        throw latestRes.error
+      }
+
+      return {
+        membersCount: membersRes.count ?? 0,
+        activeMembersCount: activeMembersRes.count ?? 0,
+        competitionsCount: competitionsRes.count ?? 0,
+        latestCompetitions: (latestRes.data ?? [])
+          .map((row) => mapCompetition(row as unknown as Record<string, unknown>))
+          .sort(sortCompetitionDesc),
+      }
+    },
+  })
 }
 
 export async function getCurrentSession() {
@@ -428,7 +541,9 @@ export async function createMember(input: MemberDraft) {
     throw error
   }
 
-  return mapMember(data as unknown as Record<string, unknown>)
+  const created = mapMember(data as unknown as Record<string, unknown>)
+  invalidateMemberRelatedCache()
+  return created
 }
 
 export async function updateMember(memberId: string, input: MemberDraft) {
@@ -456,7 +571,9 @@ export async function updateMember(memberId: string, input: MemberDraft) {
     throw error
   }
 
-  return mapMember(data as unknown as Record<string, unknown>)
+  const updated = mapMember(data as unknown as Record<string, unknown>)
+  invalidateMemberRelatedCache()
+  return updated
 }
 
 export async function deleteMember(memberId: string) {
@@ -466,6 +583,8 @@ export async function deleteMember(memberId: string) {
   if (error) {
     throw error
   }
+
+  invalidateMemberRelatedCache()
 }
 
 export async function createCompetition(input: CompetitionDraft) {
@@ -516,6 +635,7 @@ export async function createCompetition(input: CompetitionDraft) {
     }
   }
 
+  invalidateCompetitionRelatedCache()
   return competitionId
 }
 
@@ -570,6 +690,8 @@ export async function updateCompetition(
       throw insertLinksError
     }
   }
+
+  invalidateCompetitionRelatedCache()
 }
 
 export async function deleteCompetition(competitionId: string) {
@@ -582,6 +704,8 @@ export async function deleteCompetition(competitionId: string) {
   if (error) {
     throw error
   }
+
+  invalidateCompetitionRelatedCache()
 }
 
 export async function getAdminSessionWithProfile(): Promise<{

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { fetchCohortOverview } from '../lib/api'
+import { fetchCohortOverview, peekCohortOverview } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { Competition, ContestCategory } from '../types'
@@ -60,8 +60,11 @@ function toSearchText(competition: Competition) {
 }
 
 export function CohortsPage() {
-  const [competitions, setCompetitions] = useState<Competition[]>([])
-  const [loading, setLoading] = useState(true)
+  const cachedCompetitions = peekCohortOverview()
+  const [competitions, setCompetitions] = useState<Competition[]>(
+    () => cachedCompetitions ?? [],
+  )
+  const [loading, setLoading] = useState(() => !cachedCompetitions)
   const [error, setError] = useState<string | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [keyword, setKeyword] = useState('')
@@ -78,7 +81,13 @@ export function CohortsPage() {
     let disposed = false
 
     async function load() {
-      setLoading(true)
+      const cached = peekCohortOverview()
+      if (cached) {
+        setCompetitions(cached)
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
       setError(null)
 
       try {
@@ -88,7 +97,7 @@ export function CohortsPage() {
         }
       } catch (loadError) {
         if (!disposed) {
-          setError(loadError instanceof Error ? loadError.message : '加载失败')
+          setError(cached ? null : loadError instanceof Error ? loadError.message : '加载失败')
         }
       } finally {
         if (!disposed) {

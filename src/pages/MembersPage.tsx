@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { fetchAvailableCohorts, fetchMembers } from '../lib/api'
+import {
+  fetchAvailableCohorts,
+  fetchMembers,
+  type MemberFilters,
+  peekAvailableCohorts,
+  peekMembers,
+} from '../lib/api'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { Member } from '../types'
 
@@ -37,18 +43,38 @@ function toActiveFilter(statusFilter: StatusFilter): boolean | undefined {
   return undefined
 }
 
+function buildMemberFilters(input: {
+  query: string
+  cohortYear: number | ''
+  statusFilter: StatusFilter
+}): MemberFilters {
+  return {
+    query: input.query,
+    cohortYear: input.cohortYear === '' ? undefined : input.cohortYear,
+    isActive: toActiveFilter(input.statusFilter),
+  }
+}
+
 export function MembersPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [members, setMembers] = useState<Member[]>([])
-  const [cohorts, setCohorts] = useState<number[]>([])
-  const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
-  const [cohortYear, setCohortYear] = useState<number | ''>(() =>
-    parseCohort(searchParams.get('cohort')),
+  const initialQuery = searchParams.get('q') ?? ''
+  const initialCohortYear = parseCohort(searchParams.get('cohort'))
+  const initialStatusFilter = parseStatus(searchParams.get('status'))
+  const initialMembersCache = peekMembers(
+    buildMemberFilters({
+      query: initialQuery,
+      cohortYear: initialCohortYear,
+      statusFilter: initialStatusFilter,
+    }),
   )
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
-    parseStatus(searchParams.get('status')),
-  )
-  const [loading, setLoading] = useState(true)
+  const initialMembers = initialMembersCache ?? []
+
+  const [members, setMembers] = useState<Member[]>(() => initialMembers)
+  const [cohorts, setCohorts] = useState<number[]>(() => peekAvailableCohorts() ?? [])
+  const [query, setQuery] = useState(initialQuery)
+  const [cohortYear, setCohortYear] = useState<number | ''>(initialCohortYear)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatusFilter)
+  const [loading, setLoading] = useState(() => initialMembersCache === null)
   const [error, setError] = useState<string | null>(null)
 
   const debouncedQuery = useDebouncedValue(query, 300)
@@ -63,6 +89,11 @@ export function MembersPage() {
     let disposed = false
 
     async function loadCohorts() {
+      const cached = peekAvailableCohorts()
+      if (cached && !disposed) {
+        setCohorts(cached)
+      }
+
       try {
         const items = await fetchAvailableCohorts()
         if (!disposed) {
@@ -102,22 +133,29 @@ export function MembersPage() {
     let disposed = false
 
     async function loadMembers() {
-      setLoading(true)
+      const filters = buildMemberFilters({
+        query: debouncedQuery,
+        cohortYear,
+        statusFilter,
+      })
+      const cached = peekMembers(filters)
+      if (cached) {
+        setMembers(cached)
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
       setError(null)
 
       try {
-        const result = await fetchMembers({
-          query: debouncedQuery,
-          cohortYear: cohortYear === '' ? undefined : cohortYear,
-          isActive: toActiveFilter(statusFilter),
-        })
+        const result = await fetchMembers(filters)
 
         if (!disposed) {
           setMembers(result)
         }
       } catch (loadError) {
         if (!disposed) {
-          setError(loadError instanceof Error ? loadError.message : '加载失败')
+          setError(cached ? null : loadError instanceof Error ? loadError.message : '加载失败')
         }
       } finally {
         if (!disposed) {

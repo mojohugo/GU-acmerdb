@@ -9,6 +9,8 @@ import {
   fetchCohortOverview,
   fetchMembers,
   getAdminSessionWithProfile,
+  peekCohortOverview,
+  peekMembers,
   signInAsAdmin,
   signOutAdmin,
   updateCompetition,
@@ -112,8 +114,10 @@ export function AdminPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
-  const [members, setMembers] = useState<Member[]>([])
-  const [competitions, setCompetitions] = useState<Competition[]>([])
+  const [members, setMembers] = useState<Member[]>(() => peekMembers() ?? [])
+  const [competitions, setCompetitions] = useState<Competition[]>(
+    () => peekCohortOverview() ?? [],
+  )
 
   const [memberForm, setMemberForm] = useState<MemberForm>(initialMemberForm)
   const [competitionForm, setCompetitionForm] = useState<CompetitionForm>(
@@ -140,6 +144,16 @@ export function AdminPage() {
   }
 
   async function loadData() {
+    const cachedMembers = peekMembers()
+    if (cachedMembers) {
+      setMembers(cachedMembers)
+    }
+
+    const cachedCompetitions = peekCohortOverview()
+    if (cachedCompetitions) {
+      setCompetitions(cachedCompetitions)
+    }
+
     setLoadingData(true)
     try {
       const [memberList, competitionList] = await Promise.all([

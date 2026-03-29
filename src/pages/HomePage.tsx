@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { CONTEST_TYPE_DESCRIPTIONS, CONTEST_TYPE_ORDER } from '../lib/constants'
-import { fetchHomeStats } from '../lib/api'
+import { fetchHomeStats, peekHomeStats } from '../lib/api'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { HomeStats } from '../types'
 
 export function HomePage() {
-  const [stats, setStats] = useState<HomeStats | null>(null)
-  const [loading, setLoading] = useState(true)
+  const cachedStats = peekHomeStats()
+  const [stats, setStats] = useState<HomeStats | null>(() => cachedStats)
+  const [loading, setLoading] = useState(() => !cachedStats)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -22,7 +23,13 @@ export function HomePage() {
     let disposed = false
 
     async function load() {
-      setLoading(true)
+      const cached = peekHomeStats()
+      if (cached) {
+        setStats(cached)
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
       setError(null)
 
       try {
@@ -32,7 +39,7 @@ export function HomePage() {
         }
       } catch (loadError) {
         if (!disposed) {
-          setError(loadError instanceof Error ? loadError.message : '加载失败')
+          setError(cached ? null : loadError instanceof Error ? loadError.message : '加载失败')
         }
       } finally {
         if (!disposed) {

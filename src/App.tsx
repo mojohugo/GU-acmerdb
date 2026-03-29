@@ -1,43 +1,80 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 
-const HomePage = lazy(async () => {
+const loadHomePage = async () => {
   const module = await import('./pages/HomePage')
   return { default: module.HomePage }
-})
+}
 
-const MembersPage = lazy(async () => {
+const loadMembersPage = async () => {
   const module = await import('./pages/MembersPage')
   return { default: module.MembersPage }
-})
+}
 
-const MemberDetailPage = lazy(async () => {
+const loadMemberDetailPage = async () => {
   const module = await import('./pages/MemberDetailPage')
   return { default: module.MemberDetailPage }
-})
+}
 
-const CohortsPage = lazy(async () => {
+const loadCohortsPage = async () => {
   const module = await import('./pages/CohortsPage')
   return { default: module.CohortsPage }
-})
+}
 
-const AdminPage = lazy(async () => {
+const loadAdminPage = async () => {
   const module = await import('./pages/AdminPage')
   return { default: module.AdminPage }
-})
+}
 
-const AboutPage = lazy(async () => {
+const loadAboutPage = async () => {
   const module = await import('./pages/AboutPage')
   return { default: module.AboutPage }
-})
+}
 
-const NotFoundPage = lazy(async () => {
+const loadNotFoundPage = async () => {
   const module = await import('./pages/NotFoundPage')
   return { default: module.NotFoundPage }
-})
+}
+
+const HomePage = lazy(loadHomePage)
+const MembersPage = lazy(loadMembersPage)
+const MemberDetailPage = lazy(loadMemberDetailPage)
+const CohortsPage = lazy(loadCohortsPage)
+const AdminPage = lazy(loadAdminPage)
+const AboutPage = lazy(loadAboutPage)
+const NotFoundPage = lazy(loadNotFoundPage)
+
+function runWhenIdle(task: () => void) {
+  if (typeof window === 'undefined') {
+    return () => {}
+  }
+
+  if ('requestIdleCallback' in window) {
+    const idleId = window.requestIdleCallback(() => task(), { timeout: 2_000 })
+    return () => window.cancelIdleCallback(idleId)
+  }
+
+  const timeoutId = setTimeout(task, 300)
+  return () => clearTimeout(timeoutId)
+}
 
 function App() {
+  useEffect(() => {
+    return runWhenIdle(() => {
+      void Promise.allSettled([
+        loadMembersPage(),
+        loadMemberDetailPage(),
+        loadCohortsPage(),
+        loadAboutPage(),
+      ])
+
+      void import('./lib/api')
+        .then((module) => module.warmPublicData())
+        .catch(() => undefined)
+    })
+  }, [])
+
   return (
     <Layout>
       <Suspense
