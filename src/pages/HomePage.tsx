@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Activity, Trophy, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
@@ -71,9 +72,9 @@ export function HomePage() {
     }
 
     return [
-      { label: '队员总数', value: stats.membersCount },
-      { label: '当前活跃队员', value: stats.activeMembersCount },
-      { label: '赛事记录总数', value: stats.competitionsCount },
+      { label: '队员总数', value: stats.membersCount, Icon: Users },
+      { label: '当前活跃队员', value: stats.activeMembersCount, Icon: Activity },
+      { label: '赛事记录总数', value: stats.competitionsCount, Icon: Trophy },
     ]
   }, [stats])
 
@@ -99,9 +100,13 @@ export function HomePage() {
         <p className="hero-kicker">Guangzhou University</p>
         <h2>ACM 校队信息与成绩记录</h2>
         <p>
-          参考 OIerDb 的浏览体验，重点支持按时间查看新生赛、校赛、ICPC/CCPC
-          区域赛、省赛、蓝桥杯、天梯赛等比赛战绩。
+          把队伍经历做成一份可检索的时间档案：谁在什么时间参加了哪场比赛，拿到了什么成绩，都能快速找到。
         </p>
+        <div className="hero-points">
+          <span>按时间线回看战绩</span>
+          <span>按成员查看完整履历</span>
+          <span>比赛内统一维护队伍奖项</span>
+        </div>
         <div className="hero-actions">
           <Link className="btn btn-solid" to="/members">
             查看队员库
@@ -120,7 +125,10 @@ export function HomePage() {
           <section className="stats-grid">
             {statItems.map((item) => (
               <article key={item.label} className="stat-card">
-                <p>{item.label}</p>
+                <div className="stat-card-head">
+                  <item.Icon size={15} aria-hidden="true" />
+                  <p>{item.label}</p>
+                </div>
                 <strong>{item.value}</strong>
               </article>
             ))}

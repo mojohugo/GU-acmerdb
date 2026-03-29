@@ -10,19 +10,21 @@ export function Layout({ children }: PropsWithChildren) {
   return (
     <div className="app-shell">
       <header className="topbar">
+        <span className="topbar-ribbon" aria-hidden />
         <span className="topbar-glow topbar-glow-left" aria-hidden />
         <span className="topbar-glow topbar-glow-right" aria-hidden />
 
         <div className="topbar-head">
           <div className="topbar-brand">
-            <p className="topbar-kicker">GU ACM Data</p>
-            <h1>广州大学 ACM 校队队员库</h1>
+            <p className="topbar-kicker">GZHU ACM Archive</p>
+            <h1>广州大学 ACM 战绩档案</h1>
+            <p className="topbar-subtitle">像翻队史纪念册一样，查看队员与每一场比赛</p>
           </div>
 
           <div className="topbar-status" aria-label="站点状态">
-            <span className="badge-chip badge-chip-live">Live</span>
-            <span className="badge-chip">ACM Team</span>
-            <span className="badge-chip badge-chip-anime">Anime UI</span>
+            <span className="badge-chip badge-chip-live">持续更新</span>
+            <span className="badge-chip">战绩归档</span>
+            <span className="badge-chip badge-chip-anime">手作视觉版</span>
           </div>
         </div>
 
