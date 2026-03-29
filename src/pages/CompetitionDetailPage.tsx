@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
+import { AwardBadge, RankBadge } from '../components/ResultBadge'
 import {
   createCompetition,
   deleteCompetition,
@@ -390,8 +391,8 @@ export function CompetitionDetailPage() {
                     {detail.standings.map((entry, index) => (
                       <tr key={entry.id}>
                         <td>{index + 1}</td>
-                        <td>{entry.rank ?? '-'}</td>
-                        <td>{entry.award ?? '-'}</td>
+                        <td>{entry.rank ? <RankBadge rank={entry.rank} /> : '-'}</td>
+                        <td>{entry.award ? <AwardBadge award={entry.award} /> : '-'}</td>
                         <td>{entry.teamName ?? '-'}</td>
                         <td>
                           {entry.participants.length > 0 ? (

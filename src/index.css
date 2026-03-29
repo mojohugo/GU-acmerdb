@@ -193,6 +193,61 @@ p {
   border-color: rgba(215, 248, 255, 0.95);
 }
 
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  border: 1px solid rgba(128, 117, 174, 0.32);
+  background: linear-gradient(130deg, rgba(255, 255, 255, 0.95), rgba(247, 245, 255, 0.96));
+  white-space: nowrap;
+}
+
+.result-badge-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.result-badge-gold {
+  color: #8a5600;
+  border-color: rgba(219, 161, 42, 0.52);
+  background: linear-gradient(130deg, #fff7df, #ffefbf);
+}
+
+.result-badge-silver {
+  color: #4d5971;
+  border-color: rgba(136, 156, 191, 0.5);
+  background: linear-gradient(130deg, #f7faff, #e6ecf7);
+}
+
+.result-badge-bronze {
+  color: #7b4627;
+  border-color: rgba(184, 110, 69, 0.46);
+  background: linear-gradient(130deg, #ffefe2, #ffdcbf);
+}
+
+.result-badge-rose {
+  color: #8a2f6a;
+  border-color: rgba(212, 106, 178, 0.42);
+  background: linear-gradient(130deg, #ffe9f8, #ffd9ef);
+}
+
+.result-badge-blue {
+  color: #1f4f9f;
+  border-color: rgba(67, 133, 236, 0.42);
+  background: linear-gradient(130deg, #e9f3ff, #d9ebff);
+}
+
+.result-badge-neutral {
+  color: #494469;
+  border-color: rgba(128, 117, 174, 0.36);
+  background: linear-gradient(130deg, #f7f5ff, #f0edff);
+}
+
 .topbar-nav {
   display: flex;
   flex-wrap: wrap;
@@ -295,6 +350,13 @@ p {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.result-inline-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn {

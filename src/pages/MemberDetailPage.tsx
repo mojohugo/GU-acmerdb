@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
+import { AwardBadge, RankBadge } from '../components/ResultBadge'
 import { fetchMemberDetail, peekMemberDetail } from '../lib/api'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { MemberDetail } from '../types'
@@ -143,10 +144,14 @@ export function MemberDetailPage() {
                           <ContestTypeTag category={competition.category} />
                         </td>
                         <td>
-                          {competition.teamName ?? '-'}
-                          {competition.rank ? ` / ${competition.rank}` : ''}
+                          <div className="result-inline-wrap">
+                            <span>{competition.teamName ?? '-'}</span>
+                            {competition.rank ? <RankBadge rank={competition.rank} /> : null}
+                          </div>
                         </td>
-                        <td>{competition.award ?? '-'}</td>
+                        <td>
+                          {competition.award ? <AwardBadge award={competition.award} /> : '-'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
