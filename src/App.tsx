@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 
@@ -51,37 +51,7 @@ const AdminPage = lazy(loadAdminPage)
 const AboutPage = lazy(loadAboutPage)
 const NotFoundPage = lazy(loadNotFoundPage)
 
-function runWhenIdle(task: () => void) {
-  if (typeof window === 'undefined') {
-    return () => {}
-  }
-
-  if ('requestIdleCallback' in window) {
-    const idleId = window.requestIdleCallback(() => task(), { timeout: 2_000 })
-    return () => window.cancelIdleCallback(idleId)
-  }
-
-  const timeoutId = setTimeout(task, 300)
-  return () => clearTimeout(timeoutId)
-}
-
 function App() {
-  useEffect(() => {
-    return runWhenIdle(() => {
-      void Promise.allSettled([
-        loadMembersPage(),
-        loadMemberDetailPage(),
-        loadCohortsPage(),
-        loadCompetitionDetailPage(),
-        loadAboutPage(),
-      ])
-
-      void import('./lib/api')
-        .then((module) => module.warmPublicData())
-        .catch(() => undefined)
-    })
-  }, [])
-
   return (
     <Layout>
       <Suspense
