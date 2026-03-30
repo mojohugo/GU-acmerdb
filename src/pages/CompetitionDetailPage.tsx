@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { AwardBadge, RankBadge } from '../components/ResultBadge'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import {
   createCompetition,
   deleteCompetition,
@@ -48,6 +49,7 @@ type UploadTask = {
 const MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024
 const PHOTO_PAGE_SIZE_OPTIONS = [8, 16, 32] as const
 const STANDING_PAGE_SIZE_OPTIONS = [10, 20, 50] as const
+const MEMBER_PICKER_PAGE_SIZE_OPTIONS = [20, 40, 80] as const
 
 function createEmptyStandingForm(): StandingForm {
   return {
@@ -170,11 +172,17 @@ export function CompetitionDetailPage() {
   const [eventPhotoPageSize, setEventPhotoPageSize] = useState<number>(PHOTO_PAGE_SIZE_OPTIONS[1])
   const [standingPage, setStandingPage] = useState(1)
   const [standingPageSize, setStandingPageSize] = useState<number>(STANDING_PAGE_SIZE_OPTIONS[1])
+  const [memberPickerKeyword, setMemberPickerKeyword] = useState('')
+  const [memberPickerPage, setMemberPickerPage] = useState(1)
+  const [memberPickerPageSize, setMemberPickerPageSize] = useState<number>(
+    MEMBER_PICKER_PAGE_SIZE_OPTIONS[1],
+  )
   const [createForms, setCreateForms] = useState<StandingForm[]>(() => [
     createEmptyStandingForm(),
   ])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<StandingForm>(() => createEmptyStandingForm())
+  const debouncedMemberPickerKeyword = useDebouncedValue(memberPickerKeyword, 200)
 
   const eventPhotos = useMemo(
     () => detail?.media?.filter((item) => item.mediaType === 'event_photo') ?? [],
@@ -232,6 +240,46 @@ export function CompetitionDetailPage() {
     const start = (standingPage - 1) * standingPageSize
     return detail.standings.slice(start, start + standingPageSize)
   }, [detail, standingPage, standingPageSize])
+
+  const filteredMembersForPicker = useMemo(() => {
+    const normalizedKeyword = debouncedMemberPickerKeyword.trim().toLowerCase()
+    if (normalizedKeyword.length === 0) {
+      return members
+    }
+
+    return members.filter((member) => {
+      return `${member.name} ${member.handle ?? ''} ${member.major ?? ''} ${member.cohortYear}`
+        .toLowerCase()
+        .includes(normalizedKeyword)
+    })
+  }, [debouncedMemberPickerKeyword, members])
+
+  const memberPickerPageCount = useMemo(
+    () =>
+      filteredMembersForPicker.length > 0
+        ? Math.ceil(filteredMembersForPicker.length / memberPickerPageSize)
+        : 1,
+    [filteredMembersForPicker.length, memberPickerPageSize],
+  )
+
+  const pagedMembersForPicker = useMemo(() => {
+    const start = (memberPickerPage - 1) * memberPickerPageSize
+    return filteredMembersForPicker.slice(start, start + memberPickerPageSize)
+  }, [filteredMembersForPicker, memberPickerPage, memberPickerPageSize])
+
+  const certificateUploadTasksByStanding = useMemo(() => {
+    const map = new Map<string, UploadTask[]>()
+    for (const task of uploadTasks) {
+      if (task.mediaType !== 'certificate' || !task.standingId) {
+        continue
+      }
+      if (!map.has(task.standingId)) {
+        map.set(task.standingId, [])
+      }
+      map.get(task.standingId)?.push(task)
+    }
+    return map
+  }, [uploadTasks])
 
   async function reloadDetail(id: string) {
     const latest = await fetchCompetitionDetail(id)
@@ -355,6 +403,14 @@ export function CompetitionDetailPage() {
   useEffect(() => {
     setStandingPage((previous) => Math.min(Math.max(previous, 1), standingPageCount))
   }, [standingPageCount])
+
+  useEffect(() => {
+    setMemberPickerPage(1)
+  }, [debouncedMemberPickerKeyword, memberPickerPageSize])
+
+  useEffect(() => {
+    setMemberPickerPage((previous) => Math.min(Math.max(previous, 1), memberPickerPageCount))
+  }, [memberPickerPageCount])
 
   function clearActionMessage() {
     setActionError(null)
@@ -910,9 +966,8 @@ export function CompetitionDetailPage() {
                   <tbody>
                     {pagedStandings.map((entry, index) => {
                       const certificates = certificatesByStanding.get(entry.id) ?? []
-                      const certificateUploadTasks = uploadTasks.filter(
-                        (task) => task.mediaType === 'certificate' && task.standingId === entry.id,
-                      )
+                      const certificateUploadTasks =
+                        certificateUploadTasksByStanding.get(entry.id) ?? []
 
                       return (
                         <tr key={entry.id}>
@@ -1109,6 +1164,67 @@ export function CompetitionDetailPage() {
                 <p className="status status-success">{actionSuccess}</p>
               ) : null}
 
+              <section className="sub-panel stack">
+                <h4>成员选择器（分页/搜索）</h4>
+                <div className="filters">
+                  <label>
+                    搜索成员
+                    <input
+                      value={memberPickerKeyword}
+                      onChange={(event) => setMemberPickerKeyword(event.target.value)}
+                      placeholder="姓名 / handle / 专业 / 届别"
+                    />
+                  </label>
+                  <label>
+                    每页数量
+                    <select
+                      value={memberPickerPageSize}
+                      onChange={(event) => setMemberPickerPageSize(Number(event.target.value))}
+                    >
+                      {MEMBER_PICKER_PAGE_SIZE_OPTIONS.map((option) => (
+                        <option key={`member-picker-size-${option}`} value={option}>
+                          {option} 人/页
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="filters-toolbar">
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => setMemberPickerPage((previous) => Math.max(1, previous - 1))}
+                    disabled={memberPickerPage <= 1 || members.length === 0}
+                  >
+                    上一页
+                  </button>
+                  <span className="status-hint">
+                    第 {memberPickerPage} / {memberPickerPageCount} 页（本页 {pagedMembersForPicker.length} 人）
+                  </span>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() =>
+                      setMemberPickerPage((previous) =>
+                        Math.min(memberPickerPageCount, previous + 1),
+                      )
+                    }
+                    disabled={memberPickerPage >= memberPickerPageCount || members.length === 0}
+                  >
+                    下一页
+                  </button>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => setMemberPickerKeyword('')}
+                    disabled={memberPickerKeyword.trim().length === 0}
+                  >
+                    清空搜索
+                  </button>
+                  <span className="status-hint">共匹配 {filteredMembersForPicker.length} 名队员</span>
+                </div>
+              </section>
+
               <form className="stack" onSubmit={handleCreateStanding}>
                 <div className="standing-form-list">
                   {createForms.map((form, rowIndex) => (
@@ -1184,9 +1300,11 @@ export function CompetitionDetailPage() {
                           <p>参赛队员（至少 1 人）</p>
                           {members.length === 0 ? (
                             <p className="status-hint">暂无队员，请先到管理后台创建队员。</p>
+                          ) : filteredMembersForPicker.length === 0 ? (
+                            <p className="status-hint">没有匹配成员，请调整搜索关键词。</p>
                           ) : (
                             <div className="member-picker-grid">
-                              {members.map((member) => (
+                              {pagedMembersForPicker.map((member) => (
                                 <label key={`${rowIndex}-${member.id}`} className="member-picker-item">
                                   <input
                                     type="checkbox"
@@ -1286,9 +1404,11 @@ export function CompetitionDetailPage() {
                     <p>参赛队员（至少 1 人）</p>
                     {members.length === 0 ? (
                       <p className="status-hint">暂无队员，请先到管理后台创建队员。</p>
+                    ) : filteredMembersForPicker.length === 0 ? (
+                      <p className="status-hint">没有匹配成员，请调整搜索关键词。</p>
                     ) : (
                       <div className="member-picker-grid">
-                        {members.map((member) => (
+                        {pagedMembersForPicker.map((member) => (
                           <label key={member.id} className="member-picker-item">
                             <input
                               type="checkbox"
@@ -1334,7 +1454,7 @@ export function CompetitionDetailPage() {
           ) : null}
 
           <p className="todo-note">
-            TODO: 后续补充“删除附件时同步回收 OSS 对象 + 图片压缩与水印 + 上传失败重试/断点续传 + 批量拖拽上传 + 成员选择器分页/搜索”。
+            TODO: 后续补充“删除附件时同步回收 OSS 对象 + 图片压缩与水印 + 上传失败重试/断点续传 + 批量拖拽上传 + 成员选择器虚拟滚动（超大成员量）”。
           </p>
         </>
       ) : null}

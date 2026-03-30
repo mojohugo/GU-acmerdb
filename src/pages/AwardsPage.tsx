@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { fetchCohortOverview, peekCohortOverview } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
 import { downloadCsv } from '../lib/csv'
@@ -190,6 +191,7 @@ export function AwardsPage() {
   const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[1])
+  const debouncedKeyword = useDebouncedValue(keyword, 250)
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -246,7 +248,7 @@ export function AwardsPage() {
   )
 
   const filteredRecords = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase()
+    const normalizedKeyword = debouncedKeyword.trim().toLowerCase()
 
     return allAwardRecords.filter((record) => {
       if (categoryFilter !== 'all' && record.category !== categoryFilter) {
@@ -275,7 +277,7 @@ export function AwardsPage() {
 
       return true
     })
-  }, [allAwardRecords, categoryFilter, dateFrom, dateTo, keyword, tierFilter])
+  }, [allAwardRecords, categoryFilter, dateFrom, dateTo, debouncedKeyword, tierFilter])
 
   const pageCount = useMemo(
     () => (filteredRecords.length > 0 ? Math.ceil(filteredRecords.length / pageSize) : 1),
@@ -289,7 +291,7 @@ export function AwardsPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [categoryFilter, dateFrom, dateTo, keyword, pageSize, tierFilter])
+  }, [categoryFilter, dateFrom, dateTo, debouncedKeyword, pageSize, tierFilter])
 
   useEffect(() => {
     setPage((previous) => Math.min(Math.max(previous, 1), pageCount))
