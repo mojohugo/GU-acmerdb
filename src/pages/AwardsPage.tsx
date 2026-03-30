@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { fetchCohortOverview, peekCohortOverview } from '../lib/api'
+import { fetchAwardsOverview, peekAwardsOverview } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
 import { downloadCsv } from '../lib/csv'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -190,7 +190,7 @@ function exportAwardStatsAsCsv(summary: StatsSummary) {
 }
 
 export function AwardsPage() {
-  const cached = peekCohortOverview()
+  const cached = peekAwardsOverview()
   const [competitions, setCompetitions] = useState<Competition[]>(() => cached ?? [])
   const [loading, setLoading] = useState(() => !cached)
   const [error, setError] = useState<string | null>(null)
@@ -214,7 +214,7 @@ export function AwardsPage() {
     let disposed = false
 
     async function load() {
-      const cachedResult = peekCohortOverview()
+      const cachedResult = peekAwardsOverview()
       if (cachedResult) {
         setCompetitions(cachedResult)
         setLoading(false)
@@ -225,7 +225,7 @@ export function AwardsPage() {
       setError(null)
 
       try {
-        const data = await fetchCohortOverview()
+        const data = await fetchAwardsOverview()
         if (!disposed) {
           setCompetitions(data)
         }

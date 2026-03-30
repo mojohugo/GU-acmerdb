@@ -83,6 +83,7 @@ const MEMBER_DETAIL_CACHE_PREFIX = 'member-detail:'
 const COMPETITION_DETAIL_CACHE_PREFIX = 'competition-detail:'
 const COHORT_OVERVIEW_CACHE_KEY = 'cohort-overview'
 const COHORT_TIMELINE_CACHE_KEY = 'cohort-timeline'
+const AWARDS_OVERVIEW_CACHE_KEY = 'awards-overview'
 const HOME_STATS_CACHE_KEY = 'home-stats'
 
 const MEMBERS_CACHE_TTL_MS = 60_000
@@ -92,6 +93,7 @@ const MEMBER_DETAIL_CACHE_TTL_MS = 2 * 60_000
 const COMPETITION_DETAIL_CACHE_TTL_MS = 2 * 60_000
 const COHORT_OVERVIEW_CACHE_TTL_MS = 60_000
 const COHORT_TIMELINE_CACHE_TTL_MS = 60_000
+const AWARDS_OVERVIEW_CACHE_TTL_MS = 60_000
 const HOME_STATS_CACHE_TTL_MS = 60_000
 
 const DEFAULT_MEMBERS_PAGE = 1
@@ -191,6 +193,7 @@ function invalidateMemberRelatedCache() {
 function invalidateCompetitionRelatedCache() {
   invalidateCacheKey(COHORT_OVERVIEW_CACHE_KEY)
   invalidateCacheKey(COHORT_TIMELINE_CACHE_KEY)
+  invalidateCacheKey(AWARDS_OVERVIEW_CACHE_KEY)
   invalidateCacheByPrefix(MEMBER_DETAIL_CACHE_PREFIX)
   invalidateCacheByPrefix(COMPETITION_DETAIL_CACHE_PREFIX)
   invalidateCacheKey(HOME_STATS_CACHE_KEY)
@@ -383,6 +386,10 @@ function hasStandingContent(item: Competition): boolean {
   )
 }
 
+function hasAwardContent(item: Competition): boolean {
+  return Boolean(item.rank?.trim()) || Boolean(item.award?.trim())
+}
+
 async function enrichCompetitionsWithParticipants(
   client: ReturnType<typeof getSupabaseClient>,
   rows: Record<string, unknown>[],
@@ -488,6 +495,10 @@ export function peekCohortOverview() {
 
 export function peekCompetitionTimeline() {
   return peekCachedValue<Competition[]>(COHORT_TIMELINE_CACHE_KEY)
+}
+
+export function peekAwardsOverview() {
+  return peekCachedValue<Competition[]>(AWARDS_OVERVIEW_CACHE_KEY)
 }
 
 export function peekHomeStats() {
@@ -801,6 +812,35 @@ export async function fetchCompetitionTimeline() {
 
       return ((rows as unknown as Record<string, unknown>[] | null) ?? [])
         .map((row) => mapCompetition(row))
+        .sort(sortCompetitionDesc)
+    },
+  })
+}
+
+export async function fetchAwardsOverview() {
+  return fetchWithCache({
+    key: AWARDS_OVERVIEW_CACHE_KEY,
+    ttlMs: AWARDS_OVERVIEW_CACHE_TTL_MS,
+    fetcher: async () => {
+      const client = getSupabaseClient()
+      const { data: rows, error } = await client
+        .from('competitions')
+        .select(competitionFields)
+        .or('award.not.is.null,rank.not.is.null')
+        .order('happened_at', { ascending: false })
+        .order('season_year', { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      const mapped = await enrichCompetitionsWithParticipants(
+        client,
+        ((rows as unknown as Record<string, unknown>[] | null) ?? []),
+      )
+
+      return mapped
+        .filter(hasAwardContent)
         .sort(sortCompetitionDesc)
     },
   })
