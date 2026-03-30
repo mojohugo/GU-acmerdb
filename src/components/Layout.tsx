@@ -25,14 +25,7 @@ export function Layout({ children }: PropsWithChildren) {
       <header className="topbar topbar-navbar">
         <div className="topbar-head topbar-head-navbar">
           <Link to="/" className="topbar-brand topbar-brand-navbar topbar-brand-link">
-            <span className="topbar-brand-mark" aria-hidden="true">
-              G
-            </span>
-            <div className="topbar-brand-copy">
-              <p className="topbar-kicker">GU ACM TEAM</p>
-              <h1>GU ACMerDB</h1>
-              <p className="topbar-subtitle">队员档案与赛事数据管理平台</p>
-            </div>
+            GU ACMerDB
           </Link>
 
           <nav className="topbar-nav topbar-nav-navbar">
