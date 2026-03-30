@@ -206,9 +206,10 @@ export function MembersPage() {
 
   useEffect(() => {
     const nextParams = new URLSearchParams()
+    const normalizedQuery = debouncedQuery.trim()
 
-    if (query.trim()) {
-      nextParams.set('q', query.trim())
+    if (normalizedQuery) {
+      nextParams.set('q', normalizedQuery)
     }
     if (cohortYear !== '') {
       nextParams.set('cohort', String(cohortYear))
@@ -229,12 +230,17 @@ export function MembersPage() {
       nextParams.set('pageSize', String(pageSize))
     }
 
+    if (nextParams.toString() === searchParams.toString()) {
+      return
+    }
+
     setSearchParams(nextParams, { replace: true })
   }, [
     cohortYear,
+    debouncedQuery,
     page,
     pageSize,
-    query,
+    searchParams,
     setSearchParams,
     sortBy,
     sortDirection,

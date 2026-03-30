@@ -497,9 +497,14 @@ export function peekHomeStats() {
 export function warmPublicData() {
   return Promise.allSettled([
     fetchHomeStats(),
-    fetchMembers(),
+    fetchMembersPage({
+      page: DEFAULT_MEMBERS_PAGE,
+      pageSize: DEFAULT_MEMBERS_PAGE_SIZE,
+      sortBy: DEFAULT_MEMBER_SORT_BY,
+      sortDirection: DEFAULT_MEMBER_SORT_DIRECTION,
+    }),
     fetchAvailableCohorts(),
-    fetchCohortOverview(),
+    fetchCompetitionTimeline(),
   ])
 }
 

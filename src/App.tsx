@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 
@@ -58,6 +58,16 @@ const AboutPage = lazy(loadAboutPage)
 const NotFoundPage = lazy(loadNotFoundPage)
 
 function App() {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void import('./lib/api').then((module) => module.warmPublicData())
+    }, 600)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [])
+
   return (
     <Layout>
       <Suspense

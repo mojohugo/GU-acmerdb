@@ -154,6 +154,14 @@ function isImageMedia(item: CompetitionMedia) {
   return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(item.fileName)
 }
 
+function toRoundedPercent(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+
+  return Math.min(100, Math.max(0, Math.round(value)))
+}
+
 export function CompetitionDetailPage() {
   const { competitionId } = useParams()
   const cached = competitionId ? peekCompetitionDetail(competitionId) : null
@@ -242,18 +250,26 @@ export function CompetitionDetailPage() {
     return detail.standings.slice(start, start + standingPageSize)
   }, [detail, standingPage, standingPageSize])
 
+  const indexedMembersForPicker = useMemo(
+    () =>
+      members.map((member) => ({
+        member,
+        searchText: `${member.name} ${member.handle ?? ''} ${member.major ?? ''} ${member.cohortYear}`
+          .toLowerCase(),
+      })),
+    [members],
+  )
+
   const filteredMembersForPicker = useMemo(() => {
     const normalizedKeyword = debouncedMemberPickerKeyword.trim().toLowerCase()
     if (normalizedKeyword.length === 0) {
       return members
     }
 
-    return members.filter((member) => {
-      return `${member.name} ${member.handle ?? ''} ${member.major ?? ''} ${member.cohortYear}`
-        .toLowerCase()
-        .includes(normalizedKeyword)
-    })
-  }, [debouncedMemberPickerKeyword, members])
+    return indexedMembersForPicker
+      .filter((item) => item.searchText.includes(normalizedKeyword))
+      .map((item) => item.member)
+  }, [debouncedMemberPickerKeyword, indexedMembersForPicker, members])
 
   const memberPickerPageCount = useMemo(
     () =>
@@ -454,9 +470,36 @@ export function CompetitionDetailPage() {
   }
 
   function updateUploadTask(taskId: string, updater: (task: UploadTask) => UploadTask) {
-    setUploadTasks((previous) =>
-      previous.map((task) => (task.id === taskId ? updater(task) : task)),
-    )
+    setUploadTasks((previous) => {
+      let changed = false
+      const next = previous.map((task) => {
+        if (task.id !== taskId) {
+          return task
+        }
+
+        const updated = updater(task)
+        if (updated !== task) {
+          changed = true
+        }
+        return updated
+      })
+
+      return changed ? next : previous
+    })
+  }
+
+  function updateUploadTaskProgress(taskId: string, percent: number) {
+    const roundedPercent = toRoundedPercent(percent)
+    updateUploadTask(taskId, (previous) => {
+      if (previous.progress === roundedPercent) {
+        return previous
+      }
+
+      return {
+        ...previous,
+        progress: roundedPercent,
+      }
+    })
   }
 
   function updateCreateForm(
@@ -639,10 +682,7 @@ export function CompetitionDetailPage() {
           mediaType: 'event_photo',
           file,
           onProgress: (progress) => {
-            updateUploadTask(task.id, (previous) => ({
-              ...previous,
-              progress: progress.percent,
-            }))
+            updateUploadTaskProgress(task.id, progress.percent)
           },
         })
 
@@ -662,13 +702,17 @@ export function CompetitionDetailPage() {
     } catch (uploadError) {
       const reason = uploadError instanceof Error ? uploadError.message : '赛事照片上传失败'
       setActionError(reason)
-      setUploadTasks((previous) =>
-        previous.map((task) =>
-          task.mediaType === 'event_photo' && task.status === 'uploading'
-            ? { ...task, status: 'error', message: reason }
-            : task,
-        ),
-      )
+      setUploadTasks((previous) => {
+        let changed = false
+        const next = previous.map((task) => {
+          if (task.mediaType === 'event_photo' && task.status === 'uploading') {
+            changed = true
+            return { ...task, status: 'error' as const, message: reason }
+          }
+          return task
+        })
+        return changed ? next : previous
+      })
     } finally {
       setActionLoading(false)
     }
@@ -716,10 +760,7 @@ export function CompetitionDetailPage() {
         standingCompetitionId: standingId,
         file,
         onProgress: (progress) => {
-          updateUploadTask(task.id, (previous) => ({
-            ...previous,
-            progress: progress.percent,
-          }))
+          updateUploadTaskProgress(task.id, progress.percent)
         },
       })
 
