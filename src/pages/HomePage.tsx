@@ -8,6 +8,8 @@ import { fetchHomeStats, peekHomeStats } from '../lib/api'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { HomeStats } from '../types'
 
+const LATEST_PAGE_SIZE_OPTIONS = [5, 10, 20] as const
+
 function toCompetitionGroupKey(input: HomeStats['latestCompetitions'][number]) {
   return [
     input.title,
@@ -23,6 +25,8 @@ export function HomePage() {
   const [stats, setStats] = useState<HomeStats | null>(() => cachedStats)
   const [loading, setLoading] = useState(() => !cachedStats)
   const [error, setError] = useState<string | null>(null)
+  const [latestPage, setLatestPage] = useState(1)
+  const [latestPageSize, setLatestPageSize] = useState<number>(LATEST_PAGE_SIZE_OPTIONS[1])
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -94,6 +98,27 @@ export function HomePage() {
     return [...groupMap.values()]
   }, [stats])
 
+  const latestPageCount = useMemo(
+    () =>
+      latestCompetitionPreviews.length > 0
+        ? Math.ceil(latestCompetitionPreviews.length / latestPageSize)
+        : 1,
+    [latestCompetitionPreviews.length, latestPageSize],
+  )
+
+  const pagedLatestCompetitionPreviews = useMemo(() => {
+    const start = (latestPage - 1) * latestPageSize
+    return latestCompetitionPreviews.slice(start, start + latestPageSize)
+  }, [latestCompetitionPreviews, latestPage, latestPageSize])
+
+  useEffect(() => {
+    setLatestPage(1)
+  }, [latestPageSize])
+
+  useEffect(() => {
+    setLatestPage((previous) => Math.min(Math.max(previous, 1), latestPageCount))
+  }, [latestPageCount])
+
   return (
     <div className="stack">
       <section className="hero-card">
@@ -141,6 +166,24 @@ export function HomePage() {
             <div className="panel-header">
               <h3>最近赛事记录</h3>
             </div>
+            <div className="filters-toolbar">
+              <span className="status-hint">
+                共 {latestCompetitionPreviews.length} 条记录，当前第 {latestPage} / {latestPageCount} 页
+              </span>
+              <label>
+                每页数量
+                <select
+                  value={latestPageSize}
+                  onChange={(event) => setLatestPageSize(Number(event.target.value))}
+                >
+                  {LATEST_PAGE_SIZE_OPTIONS.map((option) => (
+                    <option key={`home-latest-page-size-${option}`} value={option}>
+                      {option} 条/页
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             {latestCompetitionPreviews.length === 0 ? (
               <EmptyState title="暂无赛事记录" description="请先在管理页面录入赛事。" />
             ) : (
@@ -155,7 +198,7 @@ export function HomePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {latestCompetitionPreviews.map((competition) => (
+                    {pagedLatestCompetitionPreviews.map((competition) => (
                       <tr key={competition.id}>
                         <td>{competition.happenedAt ?? '-'}</td>
                         <td>
@@ -177,6 +220,32 @@ export function HomePage() {
                 </table>
               </div>
             )}
+            {latestCompetitionPreviews.length > 0 ? (
+              <div className="pagination-row">
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setLatestPage((previous) => Math.max(1, previous - 1))}
+                  disabled={latestPage <= 1}
+                >
+                  上一页
+                </button>
+                <span className="status-hint">
+                  第 {latestPage} / {latestPageCount} 页（本页 {pagedLatestCompetitionPreviews.length}{' '}
+                  条）
+                </span>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() =>
+                    setLatestPage((previous) => Math.min(latestPageCount, previous + 1))
+                  }
+                  disabled={latestPage >= latestPageCount}
+                >
+                  下一页
+                </button>
+              </div>
+            ) : null}
           </section>
         </>
       ) : null}

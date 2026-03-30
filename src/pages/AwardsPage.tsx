@@ -11,6 +11,7 @@ import type { Competition, ContestCategory } from '../types'
 type CategoryFilter = ContestCategory | 'all'
 type AwardTone = 'gold' | 'silver' | 'bronze' | 'excellent' | 'other'
 type AwardTierFilter = AwardTone | 'all'
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 type AwardRecord = {
   id: string
@@ -187,6 +188,8 @@ export function AwardsPage() {
   const [tierFilter, setTierFilter] = useState<AwardTierFilter>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[1])
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -273,6 +276,24 @@ export function AwardsPage() {
       return true
     })
   }, [allAwardRecords, categoryFilter, dateFrom, dateTo, keyword, tierFilter])
+
+  const pageCount = useMemo(
+    () => (filteredRecords.length > 0 ? Math.ceil(filteredRecords.length / pageSize) : 1),
+    [filteredRecords.length, pageSize],
+  )
+
+  const pagedRecords = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredRecords.slice(start, start + pageSize)
+  }, [filteredRecords, page, pageSize])
+
+  useEffect(() => {
+    setPage(1)
+  }, [categoryFilter, dateFrom, dateTo, keyword, pageSize, tierFilter])
+
+  useEffect(() => {
+    setPage((previous) => Math.min(Math.max(previous, 1), pageCount))
+  }, [pageCount])
 
   const summary = useMemo<StatsSummary>(() => {
     const toneCounts: Record<AwardTone, number> = {
@@ -433,6 +454,20 @@ export function AwardsPage() {
           {!loading && !error ? (
             <span className="status-hint">共 {filteredRecords.length} 条记录</span>
           ) : null}
+          <label>
+            每页数量
+            <select
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+              disabled={loading || Boolean(error)}
+            >
+              {PAGE_SIZE_OPTIONS.map((option) => (
+                <option key={`awards-page-size-${option}`} value={option}>
+                  {option} 条/页
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {loading ? <p className="status">正在加载获奖数据...</p> : null}
@@ -532,7 +567,7 @@ export function AwardsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRecords.map((record) => (
+                    {pagedRecords.map((record) => (
                       <tr key={record.id}>
                         <td>{record.happenedAt ?? '-'}</td>
                         <td>
@@ -562,6 +597,27 @@ export function AwardsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="pagination-row">
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setPage((previous) => Math.max(1, previous - 1))}
+                  disabled={page <= 1}
+                >
+                  上一页
+                </button>
+                <span className="status-hint">
+                  第 {page} / {pageCount} 页（本页 {pagedRecords.length} 条）
+                </span>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setPage((previous) => Math.min(pageCount, previous + 1))}
+                  disabled={page >= pageCount}
+                >
+                  下一页
+                </button>
               </div>
             </>
           )

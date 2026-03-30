@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
@@ -7,12 +7,16 @@ import { fetchMemberDetail, peekMemberDetail } from '../lib/api'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { MemberDetail } from '../types'
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
+
 export function MemberDetailPage() {
   const { memberId } = useParams()
   const cachedDetail = memberId ? peekMemberDetail(memberId) : null
   const [detail, setDetail] = useState<MemberDetail | null>(() => cachedDetail)
   const [loading, setLoading] = useState(() => !cachedDetail)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[1])
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -66,6 +70,27 @@ export function MemberDetailPage() {
     }
   }, [memberId])
 
+  const pageCount = useMemo(() => {
+    const total = detail?.competitions.length ?? 0
+    return total > 0 ? Math.ceil(total / pageSize) : 1
+  }, [detail?.competitions.length, pageSize])
+
+  const pagedCompetitions = useMemo(() => {
+    if (!detail) {
+      return []
+    }
+    const start = (page - 1) * pageSize
+    return detail.competitions.slice(start, start + pageSize)
+  }, [detail, page, pageSize])
+
+  useEffect(() => {
+    setPage(1)
+  }, [memberId, pageSize])
+
+  useEffect(() => {
+    setPage((previous) => Math.min(Math.max(previous, 1), pageCount))
+  }, [pageCount])
+
   return (
     <div className="stack">
       <Link className="inline-link" to="/members">
@@ -112,6 +137,24 @@ export function MemberDetailPage() {
               <h3>赛事记录</h3>
               <p>和 OIerDb 一样，优先展示成绩明细。</p>
             </div>
+            <div className="filters-toolbar">
+              <span className="status-hint">
+                共 {detail.competitions.length} 条记录，当前第 {page} / {pageCount} 页
+              </span>
+              <label>
+                每页数量
+                <select
+                  value={pageSize}
+                  onChange={(event) => setPageSize(Number(event.target.value))}
+                >
+                  {PAGE_SIZE_OPTIONS.map((option) => (
+                    <option key={`member-detail-page-size-${option}`} value={option}>
+                      {option} 条/页
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             {detail.competitions.length === 0 ? (
               <EmptyState
@@ -131,7 +174,7 @@ export function MemberDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.competitions.map((competition) => (
+                    {pagedCompetitions.map((competition) => (
                       <tr key={competition.id}>
                         <td>{competition.happenedAt ?? '-'}</td>
                         <td>
@@ -157,6 +200,29 @@ export function MemberDetailPage() {
                 </table>
               </div>
             )}
+            {detail.competitions.length > 0 ? (
+              <div className="pagination-row">
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setPage((previous) => Math.max(1, previous - 1))}
+                  disabled={page <= 1}
+                >
+                  上一页
+                </button>
+                <span className="status-hint">
+                  第 {page} / {pageCount} 页（本页 {pagedCompetitions.length} 条）
+                </span>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setPage((previous) => Math.min(pageCount, previous + 1))}
+                  disabled={page >= pageCount}
+                >
+                  下一页
+                </button>
+              </div>
+            ) : null}
           </section>
         </>
       ) : null}

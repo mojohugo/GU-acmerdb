@@ -10,6 +10,7 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import type { Competition, ContestCategory } from '../types'
 
 type CategoryFilter = ContestCategory | 'all'
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 function toSearchText(competition: Competition) {
   return [
@@ -89,6 +90,8 @@ export function CohortsPage() {
   const [error, setError] = useState<string | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [keyword, setKeyword] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[1])
 
   const debouncedKeyword = useDebouncedValue(keyword, 250)
 
@@ -160,6 +163,24 @@ export function CohortsPage() {
     return [...groupMap.values()].toSorted(sortByTimeDesc)
   }, [categoryFilter, competitions, debouncedKeyword])
 
+  const pageCount = useMemo(
+    () => (sortedCompetitions.length > 0 ? Math.ceil(sortedCompetitions.length / pageSize) : 1),
+    [pageSize, sortedCompetitions.length],
+  )
+
+  const pagedCompetitions = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return sortedCompetitions.slice(start, start + pageSize)
+  }, [page, pageSize, sortedCompetitions])
+
+  useEffect(() => {
+    setPage(1)
+  }, [categoryFilter, debouncedKeyword, pageSize])
+
+  useEffect(() => {
+    setPage((previous) => Math.min(Math.max(previous, 1), pageCount))
+  }, [pageCount])
+
   const hasFilters = categoryFilter !== 'all' || keyword.trim().length > 0
 
   return (
@@ -221,6 +242,20 @@ export function CohortsPage() {
           {!loading && !error ? (
             <span className="status-hint">共 {sortedCompetitions.length} 条记录</span>
           ) : null}
+          <label>
+            每页数量
+            <select
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+              disabled={loading || Boolean(error)}
+            >
+              {PAGE_SIZE_OPTIONS.map((option) => (
+                <option key={`cohorts-page-size-${option}`} value={option}>
+                  {option} 条/页
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {loading ? <p className="status">正在加载赛事时间线...</p> : null}
@@ -231,7 +266,7 @@ export function CohortsPage() {
             <EmptyState title="暂无匹配赛事数据" description="可尝试清空筛选后重试。" />
           ) : (
             <div className="timeline">
-              {sortedCompetitions.map((competition) => (
+              {pagedCompetitions.map((competition) => (
                 <article key={competition.id} className="timeline-item">
                   <div className="timeline-head">
                     <Link className="inline-link" to={`/competition/${competition.id}`}>
@@ -248,6 +283,30 @@ export function CohortsPage() {
               ))}
             </div>
           )
+        ) : null}
+
+        {!loading && !error && sortedCompetitions.length > 0 ? (
+          <div className="pagination-row">
+            <button
+              className="btn"
+              type="button"
+              onClick={() => setPage((previous) => Math.max(1, previous - 1))}
+              disabled={page <= 1}
+            >
+              上一页
+            </button>
+            <span className="status-hint">
+              第 {page} / {pageCount} 页（本页 {pagedCompetitions.length} 条）
+            </span>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => setPage((previous) => Math.min(pageCount, previous + 1))}
+              disabled={page >= pageCount}
+            >
+              下一页
+            </button>
+          </div>
         ) : null}
 
         <p className="todo-note">

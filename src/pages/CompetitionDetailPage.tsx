@@ -46,6 +46,8 @@ type UploadTask = {
 }
 
 const MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024
+const PHOTO_PAGE_SIZE_OPTIONS = [8, 16, 32] as const
+const STANDING_PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 function createEmptyStandingForm(): StandingForm {
   return {
@@ -164,6 +166,10 @@ export function CompetitionDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([])
+  const [eventPhotoPage, setEventPhotoPage] = useState(1)
+  const [eventPhotoPageSize, setEventPhotoPageSize] = useState<number>(PHOTO_PAGE_SIZE_OPTIONS[1])
+  const [standingPage, setStandingPage] = useState(1)
+  const [standingPageSize, setStandingPageSize] = useState<number>(STANDING_PAGE_SIZE_OPTIONS[1])
   const [createForms, setCreateForms] = useState<StandingForm[]>(() => [
     createEmptyStandingForm(),
   ])
@@ -179,6 +185,16 @@ export function CompetitionDetailPage() {
     () => uploadTasks.filter((task) => task.mediaType === 'event_photo'),
     [uploadTasks],
   )
+
+  const eventPhotoPageCount = useMemo(
+    () => (eventPhotos.length > 0 ? Math.ceil(eventPhotos.length / eventPhotoPageSize) : 1),
+    [eventPhotoPageSize, eventPhotos.length],
+  )
+
+  const pagedEventPhotos = useMemo(() => {
+    const start = (eventPhotoPage - 1) * eventPhotoPageSize
+    return eventPhotos.slice(start, start + eventPhotoPageSize)
+  }, [eventPhotoPage, eventPhotoPageSize, eventPhotos])
 
   const certificatesByStanding = useMemo(() => {
     const map = new Map<string, CompetitionMedia[]>()
@@ -202,6 +218,20 @@ export function CompetitionDetailPage() {
 
     return map
   }, [detail])
+
+  const standingPageCount = useMemo(
+    () => (detail && detail.standings.length > 0 ? Math.ceil(detail.standings.length / standingPageSize) : 1),
+    [detail, standingPageSize],
+  )
+
+  const pagedStandings = useMemo(() => {
+    if (!detail) {
+      return []
+    }
+
+    const start = (standingPage - 1) * standingPageSize
+    return detail.standings.slice(start, start + standingPageSize)
+  }, [detail, standingPage, standingPageSize])
 
   async function reloadDetail(id: string) {
     const latest = await fetchCompetitionDetail(id)
@@ -309,6 +339,22 @@ export function CompetitionDetailPage() {
       disposed = true
     }
   }, [])
+
+  useEffect(() => {
+    setEventPhotoPage(1)
+  }, [competitionId, eventPhotoPageSize])
+
+  useEffect(() => {
+    setEventPhotoPage((previous) => Math.min(Math.max(previous, 1), eventPhotoPageCount))
+  }, [eventPhotoPageCount])
+
+  useEffect(() => {
+    setStandingPage(1)
+  }, [competitionId, standingPageSize])
+
+  useEffect(() => {
+    setStandingPage((previous) => Math.min(Math.max(previous, 1), standingPageCount))
+  }, [standingPageCount])
 
   function clearActionMessage() {
     setActionError(null)
@@ -702,12 +748,31 @@ export function CompetitionDetailPage() {
               <h3>赛事照片</h3>
               <p>支持上传现场照片，作为该比赛的图集记录。</p>
             </div>
+            <div className="filters-toolbar">
+              <span className="status-hint">
+                共 {eventPhotos.length} 张，当前第 {eventPhotoPage} / {eventPhotoPageCount} 页
+              </span>
+              <label>
+                每页数量
+                <select
+                  value={eventPhotoPageSize}
+                  onChange={(event) => setEventPhotoPageSize(Number(event.target.value))}
+                  disabled={actionLoading}
+                >
+                  {PHOTO_PAGE_SIZE_OPTIONS.map((option) => (
+                    <option key={`competition-photo-page-size-${option}`} value={option}>
+                      {option} 张/页
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             {eventPhotos.length === 0 ? (
               <EmptyState title="暂无赛事照片" description="管理员可在本页上传赛事照片。" />
             ) : (
               <div className="competition-photo-grid">
-                {eventPhotos.map((photo) => (
+                {pagedEventPhotos.map((photo) => (
                   <article key={photo.id} className="competition-photo-card">
                     <a href={photo.url} target="_blank" rel="noreferrer" className="competition-photo-link">
                       <img src={photo.url} alt={photo.fileName} loading="lazy" />
@@ -735,6 +800,32 @@ export function CompetitionDetailPage() {
                 ))}
               </div>
             )}
+
+            {eventPhotos.length > 0 ? (
+              <div className="pagination-row">
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setEventPhotoPage((previous) => Math.max(1, previous - 1))}
+                  disabled={eventPhotoPage <= 1}
+                >
+                  上一页
+                </button>
+                <span className="status-hint">
+                  第 {eventPhotoPage} / {eventPhotoPageCount} 页（本页 {pagedEventPhotos.length} 张）
+                </span>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() =>
+                    setEventPhotoPage((previous) => Math.min(eventPhotoPageCount, previous + 1))
+                  }
+                  disabled={eventPhotoPage >= eventPhotoPageCount}
+                >
+                  下一页
+                </button>
+              </div>
+            ) : null}
 
             {isAdmin && !checkingAdmin ? (
               <div className="media-upload-actions">
@@ -780,6 +871,25 @@ export function CompetitionDetailPage() {
             <div className="panel-header">
               <h3>获奖与参赛名单</h3>
             </div>
+            <div className="filters-toolbar">
+              <span className="status-hint">
+                共 {detail.standings.length} 条战绩，当前第 {standingPage} / {standingPageCount} 页
+              </span>
+              <label>
+                每页数量
+                <select
+                  value={standingPageSize}
+                  onChange={(event) => setStandingPageSize(Number(event.target.value))}
+                  disabled={actionLoading}
+                >
+                  {STANDING_PAGE_SIZE_OPTIONS.map((option) => (
+                    <option key={`competition-standing-page-size-${option}`} value={option}>
+                      {option} 条/页
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             {detail.standings.length === 0 ? (
               <EmptyState title="暂无战绩记录" description="请先新增该比赛战绩。" />
@@ -798,7 +908,7 @@ export function CompetitionDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.standings.map((entry, index) => {
+                    {pagedStandings.map((entry, index) => {
                       const certificates = certificatesByStanding.get(entry.id) ?? []
                       const certificateUploadTasks = uploadTasks.filter(
                         (task) => task.mediaType === 'certificate' && task.standingId === entry.id,
@@ -806,7 +916,7 @@ export function CompetitionDetailPage() {
 
                       return (
                         <tr key={entry.id}>
-                          <td>{index + 1}</td>
+                          <td>{(standingPage - 1) * standingPageSize + index + 1}</td>
                           <td>{entry.rank ? <RankBadge rank={entry.rank} /> : '-'}</td>
                           <td>{entry.award ? <AwardBadge award={entry.award} /> : '-'}</td>
                           <td>{entry.teamName ?? '-'}</td>
@@ -960,6 +1070,31 @@ export function CompetitionDetailPage() {
                 </table>
               </div>
             )}
+            {detail.standings.length > 0 ? (
+              <div className="pagination-row">
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setStandingPage((previous) => Math.max(1, previous - 1))}
+                  disabled={standingPage <= 1}
+                >
+                  上一页
+                </button>
+                <span className="status-hint">
+                  第 {standingPage} / {standingPageCount} 页（本页 {pagedStandings.length} 条）
+                </span>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() =>
+                    setStandingPage((previous) => Math.min(standingPageCount, previous + 1))
+                  }
+                  disabled={standingPage >= standingPageCount}
+                >
+                  下一页
+                </button>
+              </div>
+            ) : null}
           </section>
 
           {isAdmin && !checkingAdmin ? (
@@ -1199,7 +1334,7 @@ export function CompetitionDetailPage() {
           ) : null}
 
           <p className="todo-note">
-            TODO: 后续补充“删除附件时同步回收 OSS 对象 + 图片压缩与水印 + 上传失败重试/断点续传 + 批量拖拽上传”。
+            TODO: 后续补充“删除附件时同步回收 OSS 对象 + 图片压缩与水印 + 上传失败重试/断点续传 + 批量拖拽上传 + 成员选择器分页/搜索”。
           </p>
         </>
       ) : null}
