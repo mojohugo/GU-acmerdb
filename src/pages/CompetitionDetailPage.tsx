@@ -1,4 +1,4 @@
-import type { ChangeEvent, FormEvent } from 'react'
+import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
@@ -41,6 +41,8 @@ type UploadTask = {
   fileName: string
   mediaType: 'event_photo' | 'certificate'
   standingId?: string
+  file?: File
+  retryCount?: number
   progress: number
   status: UploadTaskStatus
   message?: string
@@ -193,9 +195,11 @@ export function CompetitionDetailPage() {
     createEmptyStandingForm(),
   ])
   const [activeCreateMemberPickerRow, setActiveCreateMemberPickerRow] = useState(0)
+  const [photoDropActive, setPhotoDropActive] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<StandingForm>(() => createEmptyStandingForm())
   const uploadProgressGateRef = useRef(new Map<string, { percent: number; at: number }>())
+  const photoDropDepthRef = useRef(0)
   const debouncedMemberPickerKeyword = useDebouncedValue(memberPickerKeyword, 200)
 
   const eventPhotos = useMemo(
@@ -540,6 +544,43 @@ export function CompetitionDetailPage() {
     })
   }
 
+  function validateUploadFile(mediaType: 'event_photo' | 'certificate', file: File) {
+    if (mediaType === 'event_photo' && !isPhotoFile(file)) {
+      throw new Error(`文件“${file.name}”不是图片格式，仅支持上传赛事照片（图片）`)
+    }
+
+    if (mediaType === 'certificate' && !isCertificateFile(file)) {
+      throw new Error(`文件“${file.name}”格式不支持，奖状仅支持图片或 PDF`)
+    }
+
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      throw new Error(`文件“${file.name}”超过 20MB，请压缩后上传`)
+    }
+  }
+
+  async function uploadFileTask(task: {
+    id: string
+    file: File
+    mediaType: 'event_photo' | 'certificate'
+    standingId?: string
+  }) {
+    if (!competitionId) {
+      throw new Error('缺少比赛 ID，无法上传')
+    }
+
+    validateUploadFile(task.mediaType, task.file)
+
+    await uploadCompetitionMedia({
+      competitionId,
+      mediaType: task.mediaType,
+      standingCompetitionId: task.standingId,
+      file: task.file,
+      onProgress: (progress) => {
+        updateUploadTaskProgress(task.id, progress.percent)
+      },
+    })
+  }
+
   function updateCreateForm(
     rowIndex: number,
     updater: (previous: StandingForm) => StandingForm,
@@ -680,11 +721,15 @@ export function CompetitionDetailPage() {
     }
 
     clearActionMessage()
+    setPhotoDropActive(false)
+    photoDropDepthRef.current = 0
     setActionLoading(true)
     const taskList: UploadTask[] = files.map((file, index) => ({
       id: createUploadTaskId('event-photo', index),
       fileName: file.name,
       mediaType: 'event_photo',
+      file,
+      retryCount: 0,
       progress: 0,
       status: 'uploading',
     }))
@@ -692,65 +737,70 @@ export function CompetitionDetailPage() {
 
     try {
       let uploadedCount = 0
+      let failedCount = 0
+      const failedReasons: string[] = []
 
-      for (let index = 0; index < files.length; index += 1) {
-        const file = files[index]
-        const task = taskList[index]
-
-        if (!isPhotoFile(file)) {
+      for (const task of taskList) {
+        if (!task.file) {
+          failedCount += 1
+          failedReasons.push(`文件“${task.fileName}”缺少原始数据，请重新选择`)
           updateUploadTask(task.id, (previous) => ({
             ...previous,
             status: 'error',
-            message: '不是图片格式',
+            message: '缺少原始文件',
           }))
-          throw new Error(`文件“${file.name}”不是图片格式，仅支持上传赛事照片（图片）`)
+          continue
         }
 
-        if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+        try {
+          await uploadFileTask({
+            id: task.id,
+            file: task.file,
+            mediaType: 'event_photo',
+          })
+
+          updateUploadTask(task.id, (previous) => ({
+            ...previous,
+            progress: 100,
+            status: 'success',
+            message: '上传完成',
+            file: undefined,
+          }))
+          uploadedCount += 1
+        } catch (uploadError) {
+          failedCount += 1
+          const reason = uploadError instanceof Error ? uploadError.message : '赛事照片上传失败'
+          failedReasons.push(reason)
           updateUploadTask(task.id, (previous) => ({
             ...previous,
             status: 'error',
-            message: '文件超过 20MB',
+            message: reason,
           }))
-          throw new Error(`文件“${file.name}”超过 20MB，请压缩后上传`)
         }
-
-        await uploadCompetitionMedia({
-          competitionId,
-          mediaType: 'event_photo',
-          file,
-          onProgress: (progress) => {
-            updateUploadTaskProgress(task.id, progress.percent)
-          },
-        })
-
-        updateUploadTask(task.id, (previous) => ({
-          ...previous,
-          progress: 100,
-          status: 'success',
-          message: '上传完成',
-        }))
-        uploadedCount += 1
       }
 
-      await reloadDetail(competitionId)
-      setActionSuccess(
-        uploadedCount > 1 ? `已上传 ${uploadedCount} 张赛事照片` : '赛事照片上传成功',
-      )
+      if (uploadedCount > 0) {
+        await reloadDetail(competitionId)
+      }
+
+      if (failedCount === 0) {
+        setActionSuccess(
+          uploadedCount > 1 ? `已上传 ${uploadedCount} 张赛事照片` : '赛事照片上传成功',
+        )
+      } else {
+        if (uploadedCount > 0) {
+          setActionSuccess(`已上传 ${uploadedCount} 张赛事照片，失败 ${failedCount} 张`)
+        }
+        setActionError(failedReasons[0] ?? '赛事照片上传失败')
+      }
+
+      if (failedCount > 0 && uploadedCount === 0) {
+        setActionSuccess(null)
+      }
     } catch (uploadError) {
       const reason = uploadError instanceof Error ? uploadError.message : '赛事照片上传失败'
       setActionError(reason)
-      setUploadTasks((previous) => {
-        let changed = false
-        const next = previous.map((task) => {
-          if (task.mediaType === 'event_photo' && task.status === 'uploading') {
-            changed = true
-            return { ...task, status: 'error' as const, message: reason }
-          }
-          return task
-        })
-        return changed ? next : previous
-      })
+      setActionSuccess(null)
     } finally {
       setActionLoading(false)
     }
@@ -768,38 +818,19 @@ export function CompetitionDetailPage() {
       fileName: file.name,
       mediaType: 'certificate',
       standingId,
+      file,
+      retryCount: 0,
       progress: 0,
       status: 'uploading',
     }
     replaceTasksByMediaType('certificate', [task], standingId)
 
     try {
-      if (!isCertificateFile(file)) {
-        updateUploadTask(task.id, (previous) => ({
-          ...previous,
-          status: 'error',
-          message: '仅支持图片或 PDF',
-        }))
-        throw new Error('奖状仅支持图片或 PDF 文件')
-      }
-
-      if (file.size > MAX_UPLOAD_SIZE_BYTES) {
-        updateUploadTask(task.id, (previous) => ({
-          ...previous,
-          status: 'error',
-          message: '文件超过 20MB',
-        }))
-        throw new Error(`文件“${file.name}”超过 20MB，请压缩后上传`)
-      }
-
-      await uploadCompetitionMedia({
-        competitionId,
-        mediaType: 'certificate',
-        standingCompetitionId: standingId,
+      await uploadFileTask({
+        id: task.id,
         file,
-        onProgress: (progress) => {
-          updateUploadTaskProgress(task.id, progress.percent)
-        },
+        mediaType: 'certificate',
+        standingId,
       })
 
       updateUploadTask(task.id, (previous) => ({
@@ -807,6 +838,7 @@ export function CompetitionDetailPage() {
         progress: 100,
         status: 'success',
         message: '上传完成',
+        file: undefined,
       }))
       await reloadDetail(competitionId)
       setActionSuccess('奖状上传成功')
@@ -814,6 +846,61 @@ export function CompetitionDetailPage() {
       const reason = uploadError instanceof Error ? uploadError.message : '奖状上传失败'
       setActionError(reason)
       updateUploadTask(task.id, (previous) => ({
+        ...previous,
+        status: 'error',
+        message: reason,
+      }))
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleRetryUploadTask(taskId: string) {
+    if (!competitionId) {
+      return
+    }
+
+    const targetTask = uploadTasks.find((task) => task.id === taskId)
+    if (!targetTask) {
+      return
+    }
+
+    if (!targetTask.file) {
+      setActionError('缺少原始文件，请重新选择文件后上传')
+      return
+    }
+
+    clearActionMessage()
+    setActionLoading(true)
+    updateUploadTask(taskId, (previous) => ({
+      ...previous,
+      progress: 0,
+      status: 'uploading',
+      retryCount: (previous.retryCount ?? 0) + 1,
+      message: '重试中...',
+    }))
+
+    try {
+      await uploadFileTask({
+        id: taskId,
+        file: targetTask.file,
+        mediaType: targetTask.mediaType,
+        standingId: targetTask.standingId,
+      })
+
+      updateUploadTask(taskId, (previous) => ({
+        ...previous,
+        progress: 100,
+        status: 'success',
+        message: '上传完成',
+        file: undefined,
+      }))
+      await reloadDetail(competitionId)
+      setActionSuccess(`文件“${targetTask.fileName}”重试上传成功`)
+    } catch (retryError) {
+      const reason = retryError instanceof Error ? retryError.message : '重试上传失败'
+      setActionError(reason)
+      updateUploadTask(taskId, (previous) => ({
         ...previous,
         status: 'error',
         message: reason,
@@ -869,6 +956,57 @@ export function CompetitionDetailPage() {
     }
 
     await handleUploadCertificate(standingId, file)
+  }
+
+  function onPhotoDropZoneDragEnter(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    if (actionLoading) {
+      return
+    }
+
+    photoDropDepthRef.current += 1
+    setPhotoDropActive(true)
+  }
+
+  function onPhotoDropZoneDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    if (actionLoading) {
+      return
+    }
+
+    event.dataTransfer.dropEffect = 'copy'
+    if (!photoDropActive) {
+      setPhotoDropActive(true)
+    }
+  }
+
+  function onPhotoDropZoneDragLeave(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    if (actionLoading) {
+      return
+    }
+
+    photoDropDepthRef.current = Math.max(0, photoDropDepthRef.current - 1)
+    if (photoDropDepthRef.current === 0) {
+      setPhotoDropActive(false)
+    }
+  }
+
+  async function onPhotoDropZoneDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    photoDropDepthRef.current = 0
+    setPhotoDropActive(false)
+
+    if (actionLoading) {
+      return
+    }
+
+    const files = Array.from(event.dataTransfer.files ?? [])
+    if (files.length === 0) {
+      return
+    }
+
+    await handleUploadEventPhotos(files)
   }
 
   return (
@@ -991,20 +1129,31 @@ export function CompetitionDetailPage() {
             ) : null}
 
             {isAdmin && !checkingAdmin ? (
-              <div className="media-upload-actions">
-                <label className="btn btn-small">
-                  上传赛事照片
-                  <input
-                    type="file"
-                    hidden
-                    multiple
-                    accept="image/*"
-                    onChange={(event) => void onPhotoInputChange(event)}
-                    disabled={actionLoading}
-                  />
-                </label>
-                <span className="status-hint">单文件上限 20MB，支持多选上传</span>
-              </div>
+              <>
+                <div className="media-upload-actions">
+                  <label className="btn btn-small">
+                    上传赛事照片
+                    <input
+                      type="file"
+                      hidden
+                      multiple
+                      accept="image/*"
+                      onChange={(event) => void onPhotoInputChange(event)}
+                      disabled={actionLoading}
+                    />
+                  </label>
+                  <span className="status-hint">单文件上限 20MB，支持多选上传</span>
+                </div>
+                <div
+                  className={`media-dropzone ${photoDropActive ? 'media-dropzone-active' : ''}`}
+                  onDragEnter={onPhotoDropZoneDragEnter}
+                  onDragOver={onPhotoDropZoneDragOver}
+                  onDragLeave={onPhotoDropZoneDragLeave}
+                  onDrop={(event) => void onPhotoDropZoneDrop(event)}
+                >
+                  <p>也可以把图片直接拖到这里，松手后自动批量上传</p>
+                </div>
+              </>
             ) : null}
             {eventPhotoUploadTasks.length > 0 ? (
               <div className="upload-progress-list inline-wrap">
@@ -1024,6 +1173,21 @@ export function CompetitionDetailPage() {
                       {toProgressLabel(task.status)}
                       {task.message ? `：${task.message}` : ''}
                     </p>
+                    {task.status === 'error' ? (
+                      <div className="upload-progress-actions">
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          onClick={() => void handleRetryUploadTask(task.id)}
+                          disabled={actionLoading || !task.file}
+                        >
+                          重试上传
+                        </button>
+                        {typeof task.retryCount === 'number' && task.retryCount > 0 ? (
+                          <span className="status-hint">已重试 {task.retryCount} 次</span>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </article>
                 ))}
               </div>
@@ -1187,6 +1351,24 @@ export function CompetitionDetailPage() {
                                             {toProgressLabel(task.status)}
                                             {task.message ? `：${task.message}` : ''}
                                           </p>
+                                          {task.status === 'error' ? (
+                                            <div className="upload-progress-actions">
+                                              <button
+                                                type="button"
+                                                className="btn btn-small"
+                                                onClick={() => void handleRetryUploadTask(task.id)}
+                                                disabled={actionLoading || !task.file}
+                                              >
+                                                重试上传
+                                              </button>
+                                              {typeof task.retryCount === 'number' &&
+                                              task.retryCount > 0 ? (
+                                                <span className="status-hint">
+                                                  已重试 {task.retryCount} 次
+                                                </span>
+                                              ) : null}
+                                            </div>
+                                          ) : null}
                                         </article>
                                       ))}
                                     </div>
@@ -1577,7 +1759,7 @@ export function CompetitionDetailPage() {
           ) : null}
 
           <p className="todo-note">
-            TODO: 后续补充“删除附件时同步回收 OSS 对象 + 图片压缩与水印 + 上传失败重试/断点续传 + 批量拖拽上传 + 成员选择器虚拟滚动（超大成员量）”。
+            TODO: 后续补充“删除附件时同步回收 OSS 对象 + 图片压缩与水印 + 上传断点续传 + 批量重命名上传文件 + 成员选择器虚拟滚动（超大成员量）”。
           </p>
         </>
       ) : null}

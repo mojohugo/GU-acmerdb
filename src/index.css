@@ -950,6 +950,28 @@ tbody tr:last-child td {
   gap: 8px;
 }
 
+.media-dropzone {
+  margin-top: 8px;
+  border: 1px dashed rgba(96, 117, 170, 0.36);
+  border-radius: var(--radius-sm);
+  background: rgba(246, 250, 255, 0.82);
+  padding: 9px 10px;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.media-dropzone p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.media-dropzone-active {
+  border-color: rgba(72, 103, 186, 0.62);
+  background: rgba(231, 239, 255, 0.9);
+}
+
 .attachment-stack {
   display: grid;
   gap: 6px;
@@ -1027,6 +1049,12 @@ tbody tr:last-child td {
   gap: 4px;
   content-visibility: auto;
   contain-intrinsic-size: 66px;
+}
+
+.upload-progress-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .upload-progress-head {
