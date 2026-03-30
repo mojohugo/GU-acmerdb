@@ -506,7 +506,7 @@ export function MembersPage() {
           ) : (
             <>
               <div className="table-scroll">
-                <table>
+                <table className="members-table">
                   <thead>
                     <tr>
                       <th>姓名</th>
@@ -520,7 +520,11 @@ export function MembersPage() {
                   <tbody>
                     {members.map((member) => (
                       <tr key={member.id}>
-                        <td>{member.name}</td>
+                        <td className="members-name-cell">
+                          <Link className="inline-link" to={`/member/${member.id}`}>
+                            {member.name}
+                          </Link>
+                        </td>
                         <td>{member.cohortYear} 级</td>
                         <td>{member.handle ?? '-'}</td>
                         <td>{member.major ?? '-'}</td>
@@ -537,7 +541,7 @@ export function MembersPage() {
                         </td>
                         <td>
                           <Link className="inline-link" to={`/member/${member.id}`}>
-                            查看
+                            查看档案
                           </Link>
                         </td>
                       </tr>

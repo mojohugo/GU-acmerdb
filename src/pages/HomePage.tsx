@@ -111,6 +111,19 @@ export function HomePage() {
     return latestCompetitionPreviews.slice(start, start + latestPageSize)
   }, [latestCompetitionPreviews, latestPage, latestPageSize])
 
+  const latestRecordedAt = useMemo(() => {
+    let candidate: string | null = null
+    for (const competition of latestCompetitionPreviews) {
+      if (!competition.happenedAt) {
+        continue
+      }
+      if (!candidate || competition.happenedAt > candidate) {
+        candidate = competition.happenedAt
+      }
+    }
+    return candidate
+  }, [latestCompetitionPreviews])
+
   useEffect(() => {
     setLatestPage(1)
   }, [latestPageSize])
@@ -149,7 +162,7 @@ export function HomePage() {
               </Link>
             </div>
             <p className="home-hero-side-note">
-              数据维护请前往管理页，公开页默认展示最近录入内容。
+              最近赛事日期：{latestRecordedAt ?? '暂无'}
             </p>
           </div>
         </div>
@@ -199,7 +212,7 @@ export function HomePage() {
               <EmptyState title="暂无赛事记录" description="请先在管理页面录入赛事。" />
             ) : (
               <div className="table-scroll">
-                <table>
+                <table className="home-latest-table">
                   <thead>
                     <tr>
                       <th>日期</th>

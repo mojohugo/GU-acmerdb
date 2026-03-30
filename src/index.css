@@ -312,12 +312,12 @@ p {
 .home-hero-side {
   min-width: 240px;
   max-width: 320px;
-  border: 1px solid rgba(104, 121, 167, 0.16);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.84);
-  padding: 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 2px 0 0;
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .home-hero-side-title {
@@ -366,6 +366,16 @@ p {
   max-width: none;
 }
 
+.home-latest-table {
+  min-width: 560px;
+}
+
+.home-latest-table td:nth-child(1),
+.home-latest-table th:nth-child(1) {
+  width: 120px;
+  white-space: nowrap;
+}
+
 .home-type-item p {
   line-height: 1.45;
 }
@@ -404,9 +414,8 @@ p {
 }
 
 .btn:hover {
-  transform: translateY(-1px);
   border-color: rgba(71, 91, 154, 0.56);
-  box-shadow: 0 3px 8px rgba(67, 84, 129, 0.12);
+  box-shadow: none;
 }
 
 .btn:disabled {
@@ -447,7 +456,7 @@ p {
 .panel-header {
   display: grid;
   gap: 4px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(113, 127, 168, 0.16);
 }
@@ -479,13 +488,13 @@ p {
   padding: 10px 11px;
   background: rgba(255, 255, 255, 0.86);
   transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
+    border-color 0.18s ease,
+    background-color 0.18s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 10px rgba(69, 82, 117, 0.1);
+  border-color: rgba(76, 96, 153, 0.34);
+  background: rgba(248, 251, 255, 0.95);
 }
 
 .stat-card-head {
@@ -947,6 +956,18 @@ tbody tr:last-child td {
   line-height: 1.2;
 }
 
+.member-profile-title {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.member-profile-title p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
 .member-status-chip {
   display: inline-flex;
   align-items: center;
@@ -987,7 +1008,7 @@ tbody tr:last-child td {
 .member-meta-item {
   border: 1px solid rgba(105, 121, 165, 0.18);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.74);
   padding: 7px 8px;
   display: grid;
   gap: 2px;
@@ -1008,7 +1029,7 @@ tbody tr:last-child td {
 .member-profile-stat-item {
   border: 1px solid rgba(105, 121, 165, 0.14);
   border-radius: var(--radius-sm);
-  background: rgba(249, 251, 255, 0.88);
+  background: rgba(249, 251, 255, 0.72);
   padding: 6px 8px;
   display: grid;
   gap: 2px;
@@ -1036,6 +1057,16 @@ tbody tr:last-child td {
   max-width: none;
 }
 
+.member-records-table {
+  min-width: 760px;
+}
+
+.member-records-table td:nth-child(1),
+.member-records-table th:nth-child(1) {
+  width: 120px;
+  white-space: nowrap;
+}
+
 .members-page {
   gap: 10px;
 }
@@ -1050,6 +1081,14 @@ tbody tr:last-child td {
 
 .members-toolbar .status-hint {
   margin-left: auto;
+}
+
+.members-table {
+  min-width: 700px;
+}
+
+.members-name-cell {
+  white-space: nowrap;
 }
 
 .member-list-status-tag {
@@ -1125,17 +1164,15 @@ tbody tr:last-child td {
   background: rgba(255, 255, 255, 0.92);
   border-left: 2px solid rgba(64, 93, 169, 0.24);
   transition:
-    transform 0.16s ease,
-    box-shadow 0.16s ease,
+    background-color 0.16s ease,
     border-color 0.16s ease;
   content-visibility: auto;
   contain-intrinsic-size: 76px;
 }
 
 .timeline-item:hover {
-  transform: translateY(-1px);
   border-color: rgba(96, 118, 171, 0.32);
-  box-shadow: 0 6px 14px rgba(64, 82, 126, 0.1);
+  background: rgba(248, 251, 255, 0.98);
 }
 
 .timeline-item p {
@@ -1416,6 +1453,16 @@ tbody tr:last-child td {
   color: #66708a;
   font-size: 12px;
   letter-spacing: 0.04em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @media (max-width: 1000px) {

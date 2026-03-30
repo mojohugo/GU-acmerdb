@@ -101,6 +101,19 @@ export function MemberDetailPage() {
     ]
   }, [detail])
 
+  const profileMetaItems = useMemo(() => {
+    if (!detail) {
+      return []
+    }
+
+    return [
+      { label: '届别', value: `${detail.cohortYear} 级` },
+      { label: '专业', value: detail.major ?? '-' },
+      { label: '班级', value: detail.className ?? '-' },
+      { label: '入队年份', value: detail.joinedTeamYear ? `${detail.joinedTeamYear} 年` : '-' },
+    ]
+  }, [detail])
+
   useEffect(() => {
     setPage(1)
   }, [memberId, pageSize])
@@ -122,7 +135,10 @@ export function MemberDetailPage() {
         <>
           <section className="panel member-profile-panel">
             <div className="member-profile-head">
-              <h2>{detail.name}</h2>
+              <div className="member-profile-title">
+                <h2>{detail.name}</h2>
+                <p>{detail.handle ? `@${detail.handle}` : '未填写 handle'}</p>
+              </div>
               <span
                 className={`member-status-chip ${
                   detail.isActive ? 'member-status-chip-active' : 'member-status-chip-inactive'
@@ -132,18 +148,12 @@ export function MemberDetailPage() {
               </span>
             </div>
             <div className="member-profile-meta">
-              <article className="member-meta-item">
-                <span>届别</span>
-                <strong>{detail.cohortYear} 级</strong>
-              </article>
-              <article className="member-meta-item">
-                <span>handle</span>
-                <strong>{detail.handle ? `@${detail.handle}` : '-'}</strong>
-              </article>
-              <article className="member-meta-item">
-                <span>专业</span>
-                <strong>{detail.major ?? '-'}</strong>
-              </article>
+              {profileMetaItems.map((item) => (
+                <article key={item.label} className="member-meta-item">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </article>
+              ))}
             </div>
             <div className="member-profile-stats">
               {profileSummaryItems.map((item) => (
@@ -192,7 +202,7 @@ export function MemberDetailPage() {
               />
             ) : (
               <div className="table-scroll">
-                <table>
+                <table className="member-records-table">
                   <thead>
                     <tr>
                       <th>日期</th>
