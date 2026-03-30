@@ -120,28 +120,32 @@ export function HomePage() {
   }, [latestPageCount])
 
   return (
-    <div className="stack">
-      <section className="hero-card">
-        <p className="hero-kicker">Guangzhou University</p>
-        <h2>ACM 校队信息与成绩记录</h2>
-        <p>
-          把队员履历、赛事记录和获奖信息放在同一个入口，查历史、看全貌都会更顺手。
-        </p>
-        <div className="hero-points">
-          <span>赛事时间线回看</span>
-          <span>成员维度检索</span>
-          <span>管理员在线维护</span>
-        </div>
-        <div className="hero-actions">
-          <Link className="btn btn-solid" to="/members">
-            查看队员库
-          </Link>
-          <Link className="btn" to="/cohorts">
-            查看赛事时间线
-          </Link>
-          <Link className="btn" to="/awards">
-            获奖查询与统计
-          </Link>
+    <div className="stack home-page">
+      <section className="hero-card home-hero">
+        <div className="home-hero-main">
+          <div className="home-hero-copy">
+            <p className="hero-kicker">Guangzhou University</p>
+            <h2>ACM 校队信息与成绩记录</h2>
+            <p>
+              把队员履历、赛事记录和获奖信息放在同一个入口，查历史、看全貌都会更顺手。
+            </p>
+            <div className="hero-points">
+              <span>赛事时间线回看</span>
+              <span>成员维度检索</span>
+              <span>管理员在线维护</span>
+            </div>
+          </div>
+          <div className="hero-actions home-hero-actions">
+            <Link className="btn btn-solid" to="/members">
+              查看队员库
+            </Link>
+            <Link className="btn" to="/cohorts">
+              查看赛事时间线
+            </Link>
+            <Link className="btn" to="/awards">
+              获奖查询与统计
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -150,9 +154,9 @@ export function HomePage() {
 
       {!loading && !error && stats ? (
         <>
-          <section className="stats-grid">
+          <section className="stats-grid home-stats-grid">
             {statItems.map((item) => (
-              <article key={item.label} className="stat-card">
+              <article key={item.label} className="stat-card home-stat-card">
                 <div className="stat-card-head">
                   <item.Icon size={15} aria-hidden="true" />
                   <p>{item.label}</p>
@@ -162,7 +166,7 @@ export function HomePage() {
             ))}
           </section>
 
-          <section className="panel">
+          <section className="panel home-latest-panel">
             <div className="panel-header">
               <h3>最近赛事记录</h3>
               <p>默认展示最新录入的赛事分组，可直接进入详情查看战绩与附件。</p>
@@ -251,13 +255,13 @@ export function HomePage() {
         </>
       ) : null}
 
-      <section className="panel">
+      <section className="panel home-type-panel">
         <div className="panel-header">
           <h3>支持的赛事类别</h3>
         </div>
         <div className="type-grid">
           {CONTEST_TYPE_ORDER.filter((type) => type !== 'other').map((type) => (
-            <article key={type} className="type-item">
+            <article key={type} className="type-item home-type-item">
               <ContestTypeTag category={type} />
               <p>{CONTEST_TYPE_DESCRIPTIONS[type]}</p>
             </article>

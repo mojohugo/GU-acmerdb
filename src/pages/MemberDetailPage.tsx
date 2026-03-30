@@ -92,7 +92,7 @@ export function MemberDetailPage() {
   }, [pageCount])
 
   return (
-    <div className="stack">
+    <div className="stack member-detail-page">
       <Link className="inline-link" to="/members">
         返回队员列表
       </Link>
@@ -102,40 +102,43 @@ export function MemberDetailPage() {
 
       {!loading && !error && detail ? (
         <>
-          <section className="panel">
-            <div className="panel-header">
+          <section className="panel member-profile-panel">
+            <div className="member-profile-head">
               <h2>{detail.name}</h2>
+              <span
+                className={`member-status-chip ${
+                  detail.isActive ? 'member-status-chip-active' : 'member-status-chip-inactive'
+                }`}
+              >
+                {detail.isActive ? '在队' : '已毕业/离队'}
+              </span>
             </div>
-            <div className="detail-grid">
-              <article>
-                <h4>届别</h4>
-                <p>{detail.cohortYear} 级</p>
+            <div className="member-profile-meta">
+              <article className="member-meta-item">
+                <span>届别</span>
+                <strong>{detail.cohortYear} 级</strong>
               </article>
-              <article>
-                <h4>handle</h4>
-                <p>{detail.handle ?? '-'}</p>
+              <article className="member-meta-item">
+                <span>handle</span>
+                <strong>{detail.handle ? `@${detail.handle}` : '-'}</strong>
               </article>
-              <article>
-                <h4>专业</h4>
-                <p>{detail.major ?? '-'}</p>
-              </article>
-              <article>
-                <h4>状态</h4>
-                <p>{detail.isActive ? '在队' : '已毕业/离队'}</p>
+              <article className="member-meta-item">
+                <span>专业</span>
+                <strong>{detail.major ?? '-'}</strong>
               </article>
             </div>
             {detail.bio ? (
-              <article className="bio-block">
+              <article className="bio-block member-bio">
                 <h4>简介</h4>
                 <p>{detail.bio}</p>
               </article>
             ) : null}
           </section>
 
-          <section className="panel">
+          <section className="panel member-records-panel">
             <div className="panel-header">
               <h3>赛事记录</h3>
-              <p>和 OIerDb 一样，优先展示成绩明细。</p>
+              <p>按时间倒序展示该队员参与过的比赛与成绩。</p>
             </div>
             <div className="filters-toolbar">
               <span className="status-hint">
