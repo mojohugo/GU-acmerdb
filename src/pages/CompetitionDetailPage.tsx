@@ -1,5 +1,5 @@
 import type { ChangeEvent, FormEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
@@ -162,6 +162,10 @@ function toRoundedPercent(value: number) {
   return Math.min(100, Math.max(0, Math.round(value)))
 }
 
+function getNowTime() {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now()
+}
+
 export function CompetitionDetailPage() {
   const { competitionId } = useParams()
   const cached = competitionId ? peekCompetitionDetail(competitionId) : null
@@ -191,6 +195,7 @@ export function CompetitionDetailPage() {
   const [activeCreateMemberPickerRow, setActiveCreateMemberPickerRow] = useState(0)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<StandingForm>(() => createEmptyStandingForm())
+  const uploadProgressGateRef = useRef(new Map<string, { percent: number; at: number }>())
   const debouncedMemberPickerKeyword = useDebouncedValue(memberPickerKeyword, 200)
 
   const eventPhotos = useMemo(
@@ -456,16 +461,26 @@ export function CompetitionDetailPage() {
     standingId?: string,
   ) {
     setUploadTasks((previous) => {
+      let next: UploadTask[]
       if (mediaType === 'event_photo') {
-        return [...previous.filter((item) => item.mediaType !== 'event_photo'), ...nextTasks]
+        next = [...previous.filter((item) => item.mediaType !== 'event_photo'), ...nextTasks]
+      } else {
+        next = [
+          ...previous.filter(
+            (item) => !(item.mediaType === 'certificate' && item.standingId === standingId),
+          ),
+          ...nextTasks,
+        ]
       }
 
-      return [
-        ...previous.filter(
-          (item) => !(item.mediaType === 'certificate' && item.standingId === standingId),
-        ),
-        ...nextTasks,
-      ]
+      const nextTaskIds = new Set(next.map((item) => item.id))
+      for (const item of previous) {
+        if (!nextTaskIds.has(item.id)) {
+          uploadProgressGateRef.current.delete(item.id)
+        }
+      }
+
+      return next
     })
   }
 
@@ -481,6 +496,10 @@ export function CompetitionDetailPage() {
         if (updated !== task) {
           changed = true
         }
+
+        if (updated.status !== 'uploading') {
+          uploadProgressGateRef.current.delete(taskId)
+        }
         return updated
       })
 
@@ -490,6 +509,25 @@ export function CompetitionDetailPage() {
 
   function updateUploadTaskProgress(taskId: string, percent: number) {
     const roundedPercent = toRoundedPercent(percent)
+    const now = getNowTime()
+    const latest = uploadProgressGateRef.current.get(taskId)
+    const isTerminal = roundedPercent >= 100 || roundedPercent <= 0
+
+    if (latest) {
+      if (roundedPercent <= latest.percent) {
+        return
+      }
+
+      if (!isTerminal && now - latest.at < 80) {
+        return
+      }
+    }
+
+    uploadProgressGateRef.current.set(taskId, {
+      percent: roundedPercent,
+      at: now,
+    })
+
     updateUploadTask(taskId, (previous) => {
       if (previous.progress === roundedPercent) {
         return previous

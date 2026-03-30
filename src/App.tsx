@@ -59,12 +59,25 @@ const NotFoundPage = lazy(loadNotFoundPage)
 
 function App() {
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    let timer: number | null = null
+    let idleHandle: number | null = null
+    const runWarmup = () => {
       void import('./lib/api').then((module) => module.warmPublicData())
-    }, 600)
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idleHandle = window.requestIdleCallback(runWarmup, { timeout: 1500 })
+    } else {
+      timer = window.setTimeout(runWarmup, 600)
+    }
 
     return () => {
-      window.clearTimeout(timer)
+      if (timer !== null) {
+        window.clearTimeout(timer)
+      }
+      if (idleHandle !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle)
+      }
     }
   }, [])
 
