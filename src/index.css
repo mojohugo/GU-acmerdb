@@ -915,18 +915,22 @@ tbody tr:last-child td {
 }
 
 .competition-photo-link {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-sm);
   overflow: hidden;
   border: 1px solid rgba(104, 121, 167, 0.2);
   aspect-ratio: 4 / 3;
-  background: rgba(234, 241, 255, 0.72);
+  padding: 6px;
+  background: linear-gradient(135deg, rgba(236, 242, 255, 0.9), rgba(245, 248, 255, 0.95));
 }
 
 .competition-photo-link img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  border-radius: calc(var(--radius-sm) - 2px);
   display: block;
 }
 
@@ -958,9 +962,107 @@ tbody tr:last-child td {
 
 .attachment-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
+  gap: 10px;
+}
+
+.attachment-thumb-link {
+  width: 78px;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(104, 121, 167, 0.24);
+  overflow: hidden;
+  background: linear-gradient(130deg, rgba(240, 245, 255, 0.92), rgba(248, 250, 255, 0.96));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.attachment-thumb-link img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: calc(var(--radius-sm) - 2px);
+  display: block;
+}
+
+.attachment-file-chip {
+  min-width: 54px;
+  text-align: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(108, 123, 163, 0.34);
+  background: rgba(246, 249, 255, 0.92);
+  color: #405087;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 10px;
+  text-decoration: none;
+}
+
+.attachment-meta {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.upload-progress-list {
+  display: grid;
   gap: 8px;
+}
+
+.upload-progress-item {
+  border: 1px solid rgba(108, 123, 163, 0.24);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.86);
+  display: grid;
+  gap: 6px;
+}
+
+.upload-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.upload-progress-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-progress-head strong {
+  color: #334b8b;
+}
+
+.upload-progress-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(139, 153, 188, 0.2);
+  overflow: hidden;
+}
+
+.upload-progress-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  transition: width 0.2s ease;
+  background: linear-gradient(120deg, #4f79ee, #3b61ca);
+}
+
+.upload-progress-fill-success {
+  background: linear-gradient(120deg, #2fbf8f, #219d75);
+}
+
+.upload-progress-fill-error {
+  background: linear-gradient(120deg, #d4647b, #bf455e);
 }
 
 .award-stats-grid {
@@ -996,6 +1098,16 @@ tbody tr:last-child td {
 
 .simple-list li strong {
   color: #344b8d;
+}
+
+.import-warning-list li {
+  align-items: flex-start;
+}
+
+.import-warning-list li strong {
+  color: var(--danger);
+  font-weight: 600;
+  text-align: right;
 }
 
 .inline-wrap {

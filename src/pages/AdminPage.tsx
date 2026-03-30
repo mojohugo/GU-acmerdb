@@ -17,7 +17,13 @@ import {
   updateCompetition,
   updateMember,
 } from '../lib/api'
-import { parseCompetitionImportCsv, parseMemberImportCsv } from '../lib/batchImport'
+import {
+  checkCompetitionImportRows,
+  checkMemberImportRows,
+  parseCompetitionImportCsv,
+  parseMemberImportCsv,
+  type ImportWarning,
+} from '../lib/batchImport'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
 import { downloadCsv } from '../lib/csv'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -57,6 +63,31 @@ type CompetitionGroup = {
   remark: string | null
   standingsCount: number
   entries: Competition[]
+}
+
+type MemberImportPreview = {
+  rowCount: number
+  warnings: ImportWarning[]
+  samples: Array<{
+    rowNumber: number
+    name: string
+    cohortYear: number
+    handle?: string
+    isActive: boolean
+  }>
+}
+
+type CompetitionImportPreview = {
+  rowCount: number
+  warnings: ImportWarning[]
+  samples: Array<{
+    rowNumber: number
+    title: string
+    category: ContestCategory
+    seasonYear: number
+    memberCount: number
+    hasStanding: boolean
+  }>
 }
 
 const initialMemberForm: MemberForm = {
@@ -193,6 +224,9 @@ export function AdminPage() {
   )
   const [memberImportText, setMemberImportText] = useState('')
   const [competitionImportText, setCompetitionImportText] = useState('')
+  const [memberImportPreview, setMemberImportPreview] = useState<MemberImportPreview | null>(null)
+  const [competitionImportPreview, setCompetitionImportPreview] =
+    useState<CompetitionImportPreview | null>(null)
 
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editMemberForm, setEditMemberForm] = useState<MemberForm>(initialMemberForm)
@@ -337,6 +371,8 @@ export function AdminPage() {
       setCompetitions([])
       setEditingMemberId(null)
       setEditingCompetitionKey(null)
+      setMemberImportPreview(null)
+      setCompetitionImportPreview(null)
       setSuccess('已退出登录')
     } catch (e) {
       setError(e instanceof Error ? e.message : '退出失败')
@@ -393,8 +429,10 @@ export function AdminPage() {
       const normalized = text.replace(/^\uFEFF/, '')
       if (target === 'member') {
         setMemberImportText(normalized)
+        setMemberImportPreview(null)
       } else {
         setCompetitionImportText(normalized)
+        setCompetitionImportPreview(null)
       }
       setSuccess(`已读取文件：${file.name}`)
     } catch (e) {
@@ -406,6 +444,92 @@ export function AdminPage() {
     }
   }
 
+  async function previewMemberImport() {
+    clearMsg()
+    setSubmitting(true)
+
+    try {
+      const latestMembers = members.length > 0 ? members : await fetchMembers()
+      if (members.length === 0 && latestMembers.length > 0) {
+        setMembers(latestMembers)
+      }
+
+      const rows = parseMemberImportCsv(memberImportText)
+      const warnings = checkMemberImportRows(rows, latestMembers)
+
+      setMemberImportPreview({
+        rowCount: rows.length,
+        warnings,
+        samples: rows.slice(0, 5).map((row) => ({
+          rowNumber: row.rowNumber,
+          name: row.draft.name,
+          cohortYear: row.draft.cohortYear,
+          handle: row.draft.handle,
+          isActive: row.draft.isActive,
+        })),
+      })
+
+      setSuccess(
+        warnings.length > 0
+          ? `队员 CSV 预检完成：${rows.length} 行，可导入；发现 ${warnings.length} 条提醒。`
+          : `队员 CSV 预检通过：${rows.length} 行可导入。`,
+      )
+    } catch (e) {
+      setMemberImportPreview(null)
+      setError(e instanceof Error ? e.message : '队员 CSV 预检失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function previewCompetitionImport() {
+    clearMsg()
+    setSubmitting(true)
+
+    try {
+      const [latestMembers, latestCompetitions] = await Promise.all([
+        members.length > 0 ? Promise.resolve(members) : fetchMembers(),
+        competitions.length > 0 ? Promise.resolve(competitions) : fetchCohortOverview(),
+      ])
+
+      if (members.length === 0 && latestMembers.length > 0) {
+        setMembers(latestMembers)
+      }
+      if (competitions.length === 0 && latestCompetitions.length > 0) {
+        setCompetitions(latestCompetitions)
+      }
+
+      const rows = parseCompetitionImportCsv(competitionImportText, latestMembers)
+      const warnings = checkCompetitionImportRows(rows, latestCompetitions)
+
+      setCompetitionImportPreview({
+        rowCount: rows.length,
+        warnings,
+        samples: rows.slice(0, 5).map((row) => ({
+          rowNumber: row.rowNumber,
+          title: row.draft.title,
+          category: row.draft.category,
+          seasonYear: row.draft.seasonYear,
+          memberCount: row.draft.memberIds.length,
+          hasStanding: Boolean(
+            row.draft.teamName?.trim() || row.draft.rank?.trim() || row.draft.award?.trim(),
+          ),
+        })),
+      })
+
+      setSuccess(
+        warnings.length > 0
+          ? `赛事 CSV 预检完成：${rows.length} 行，可导入；发现 ${warnings.length} 条提醒。`
+          : `赛事 CSV 预检通过：${rows.length} 行可导入。`,
+      )
+    } catch (e) {
+      setCompetitionImportPreview(null)
+      setError(e instanceof Error ? e.message : '赛事 CSV 预检失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   async function submitMemberImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     clearMsg()
@@ -413,7 +537,33 @@ export function AdminPage() {
 
     let importedCount = 0
     try {
+      const latestMembers = members.length > 0 ? members : await fetchMembers()
+      if (members.length === 0 && latestMembers.length > 0) {
+        setMembers(latestMembers)
+      }
+
       const rows = parseMemberImportCsv(memberImportText)
+      const warnings = checkMemberImportRows(rows, latestMembers)
+
+      setMemberImportPreview({
+        rowCount: rows.length,
+        warnings,
+        samples: rows.slice(0, 5).map((row) => ({
+          rowNumber: row.rowNumber,
+          name: row.draft.name,
+          cohortYear: row.draft.cohortYear,
+          handle: row.draft.handle,
+          isActive: row.draft.isActive,
+        })),
+      })
+
+      if (
+        warnings.length > 0 &&
+        !window.confirm(`预检发现 ${warnings.length} 条提醒，是否仍继续导入？`)
+      ) {
+        setSuccess('已取消导入，请根据预检提醒修改后重试。')
+        return
+      }
 
       for (const row of rows) {
         try {
@@ -431,6 +581,7 @@ export function AdminPage() {
 
       await loadData()
       setMemberImportText('')
+      setMemberImportPreview(null)
       setSuccess(`队员批量导入完成，共 ${importedCount} 条`)
     } catch (e) {
       if (importedCount > 0) {
@@ -449,12 +600,43 @@ export function AdminPage() {
 
     let importedCount = 0
     try {
-      const latestMembers = members.length > 0 ? members : await fetchMembers()
+      const [latestMembers, latestCompetitions] = await Promise.all([
+        members.length > 0 ? Promise.resolve(members) : fetchMembers(),
+        competitions.length > 0 ? Promise.resolve(competitions) : fetchCohortOverview(),
+      ])
+
       if (members.length === 0 && latestMembers.length > 0) {
         setMembers(latestMembers)
       }
+      if (competitions.length === 0 && latestCompetitions.length > 0) {
+        setCompetitions(latestCompetitions)
+      }
 
       const rows = parseCompetitionImportCsv(competitionImportText, latestMembers)
+      const warnings = checkCompetitionImportRows(rows, latestCompetitions)
+
+      setCompetitionImportPreview({
+        rowCount: rows.length,
+        warnings,
+        samples: rows.slice(0, 5).map((row) => ({
+          rowNumber: row.rowNumber,
+          title: row.draft.title,
+          category: row.draft.category,
+          seasonYear: row.draft.seasonYear,
+          memberCount: row.draft.memberIds.length,
+          hasStanding: Boolean(
+            row.draft.teamName?.trim() || row.draft.rank?.trim() || row.draft.award?.trim(),
+          ),
+        })),
+      })
+
+      if (
+        warnings.length > 0 &&
+        !window.confirm(`预检发现 ${warnings.length} 条提醒，是否仍继续导入？`)
+      ) {
+        setSuccess('已取消导入，请根据预检提醒修改后重试。')
+        return
+      }
 
       for (const row of rows) {
         try {
@@ -472,6 +654,7 @@ export function AdminPage() {
 
       await loadData()
       setCompetitionImportText('')
+      setCompetitionImportPreview(null)
       setSuccess(`赛事批量导入完成，共 ${importedCount} 条`)
     } catch (e) {
       if (importedCount > 0) {
@@ -782,8 +965,23 @@ export function AdminPage() {
                 <button className="btn" type="button" onClick={downloadMemberImportTemplate}>
                   下载队员模板 CSV
                 </button>
-                <button className="btn" type="button" onClick={() => setMemberImportText('')}>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => {
+                    setMemberImportText('')
+                    setMemberImportPreview(null)
+                  }}
+                >
                   清空文本
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={submitting || memberImportText.trim().length === 0}
+                  onClick={() => void previewMemberImport()}
+                >
+                  {submitting ? '预检中...' : '预检队员 CSV'}
                 </button>
               </div>
               <form className="form-grid inline-wrap" onSubmit={submitMemberImport}>
@@ -800,7 +998,10 @@ export function AdminPage() {
                   <textarea
                     rows={7}
                     value={memberImportText}
-                    onChange={(event) => setMemberImportText(event.target.value)}
+                    onChange={(event) => {
+                      setMemberImportText(event.target.value)
+                      setMemberImportPreview(null)
+                    }}
                     placeholder="name,cohortYear,handle,major,isActive"
                     required
                   />
@@ -809,6 +1010,39 @@ export function AdminPage() {
                   {submitting ? '导入中...' : '批量导入队员'}
                 </button>
               </form>
+              {memberImportPreview ? (
+                <div className="inline-wrap">
+                  <p className="status-hint">预检结果：{memberImportPreview.rowCount} 行可解析。</p>
+                  {memberImportPreview.warnings.length > 0 ? (
+                    <ul className="simple-list import-warning-list">
+                      {memberImportPreview.warnings.slice(0, 8).map((warning, index) => (
+                        <li key={`member-warning-${warning.rowNumber}-${index}`}>
+                          <span>第 {warning.rowNumber} 行</span>
+                          <strong>{warning.message}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="status status-success">未发现重复或异常提醒，可直接导入。</p>
+                  )}
+                  {memberImportPreview.warnings.length > 8 ? (
+                    <p className="status-hint">
+                      还有 {memberImportPreview.warnings.length - 8} 条提醒未展示，请先修正后再导入。
+                    </p>
+                  ) : null}
+                  <p className="status-hint">
+                    预览前 {memberImportPreview.samples.length} 行：
+                    {memberImportPreview.samples
+                      .map(
+                        (sample) =>
+                          `#${sample.rowNumber} ${sample.name}/${sample.cohortYear}${
+                            sample.handle ? ` (${sample.handle})` : ''
+                          }/${sample.isActive ? '在队' : '离队'}`,
+                      )
+                      .join('；')}
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <div className="sub-panel inline-wrap">
@@ -823,9 +1057,20 @@ export function AdminPage() {
                 <button
                   className="btn"
                   type="button"
-                  onClick={() => setCompetitionImportText('')}
+                  onClick={() => {
+                    setCompetitionImportText('')
+                    setCompetitionImportPreview(null)
+                  }}
                 >
                   清空文本
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={submitting || competitionImportText.trim().length === 0}
+                  onClick={() => void previewCompetitionImport()}
+                >
+                  {submitting ? '预检中...' : '预检赛事 CSV'}
                 </button>
               </div>
               <form className="form-grid inline-wrap" onSubmit={submitCompetitionImport}>
@@ -842,7 +1087,10 @@ export function AdminPage() {
                   <textarea
                     rows={8}
                     value={competitionImportText}
-                    onChange={(event) => setCompetitionImportText(event.target.value)}
+                    onChange={(event) => {
+                      setCompetitionImportText(event.target.value)
+                      setCompetitionImportPreview(null)
+                    }}
                     placeholder="title,category,seasonYear,contestLevel,happenedAt,teamName,rank,award,members,remark"
                     required
                   />
@@ -851,10 +1099,45 @@ export function AdminPage() {
                   {submitting ? '导入中...' : '批量导入赛事'}
                 </button>
               </form>
+              {competitionImportPreview ? (
+                <div className="inline-wrap">
+                  <p className="status-hint">
+                    预检结果：{competitionImportPreview.rowCount} 行可解析。
+                  </p>
+                  {competitionImportPreview.warnings.length > 0 ? (
+                    <ul className="simple-list import-warning-list">
+                      {competitionImportPreview.warnings.slice(0, 8).map((warning, index) => (
+                        <li key={`competition-warning-${warning.rowNumber}-${index}`}>
+                          <span>第 {warning.rowNumber} 行</span>
+                          <strong>{warning.message}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="status status-success">未发现重复或异常提醒，可直接导入。</p>
+                  )}
+                  {competitionImportPreview.warnings.length > 8 ? (
+                    <p className="status-hint">
+                      还有 {competitionImportPreview.warnings.length - 8} 条提醒未展示，请先修正后再导入。
+                    </p>
+                  ) : null}
+                  <p className="status-hint">
+                    预览前 {competitionImportPreview.samples.length} 行：
+                    {competitionImportPreview.samples
+                      .map(
+                        (sample) =>
+                          `#${sample.rowNumber} ${sample.title}/${CONTEST_TYPE_LABELS[sample.category]}/${
+                            sample.seasonYear
+                          }/成员${sample.memberCount}人/${sample.hasStanding ? '含战绩' : '仅主档案'}`,
+                      )
+                      .join('；')}
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <p className="todo-note">
-              TODO: 批量导入后续补充“导入预检（仅校验不写库）+ Excel(xlsx) 直传解析 + 失败自动回滚”。
+              TODO: 批量导入后续补充“Excel(xlsx) 直传解析 + 失败自动回滚 + 按唯一键覆盖更新”。
             </p>
           </section>
 

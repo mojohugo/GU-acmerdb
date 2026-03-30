@@ -1,9 +1,20 @@
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from './constants'
-import type { CompetitionDraft, ContestCategory, Member, MemberDraft } from '../types'
+import type {
+  Competition,
+  CompetitionDraft,
+  ContestCategory,
+  Member,
+  MemberDraft,
+} from '../types'
 
 export type ImportDraftRow<T> = {
   rowNumber: number
   draft: T
+}
+
+export type ImportWarning = {
+  rowNumber: number
+  message: string
 }
 
 type ParsedCsvTable = {
@@ -527,4 +538,164 @@ export function parseCompetitionImportCsv(
   return rows
 }
 
+function normalizeNullableText(value: string | null | undefined) {
+  return normalizeToken(value ?? '')
+}
+
+function toMemberNameCohortKey(name: string, cohortYear: number) {
+  return `${normalizeToken(name)}|${cohortYear}`
+}
+
+function toCompetitionSignature(input: {
+  title: string
+  category: ContestCategory
+  seasonYear: number
+  happenedAt?: string | null
+  contestLevel?: string | null
+  teamName?: string | null
+  rank?: string | null
+  award?: string | null
+  memberIds?: string[]
+}) {
+  const memberToken = (input.memberIds ?? [])
+    .map((id) => normalizeToken(id))
+    .filter((id) => id.length > 0)
+    .sort()
+    .join(',')
+
+  return [
+    normalizeToken(input.title),
+    normalizeToken(input.category),
+    String(input.seasonYear),
+    normalizeNullableText(input.happenedAt),
+    normalizeNullableText(input.contestLevel),
+    normalizeNullableText(input.teamName),
+    normalizeNullableText(input.rank),
+    normalizeNullableText(input.award),
+    memberToken,
+  ].join('|')
+}
+
+export function checkMemberImportRows(
+  rows: ImportDraftRow<MemberDraft>[],
+  existingMembers: Member[],
+): ImportWarning[] {
+  const warnings: ImportWarning[] = []
+
+  const existingHandleSet = new Set<string>()
+  const existingNameCohortSet = new Set<string>()
+
+  for (const item of existingMembers) {
+    const handle = normalizeToken(item.handle ?? '')
+    if (handle.length > 0) {
+      existingHandleSet.add(handle)
+    }
+    existingNameCohortSet.add(toMemberNameCohortKey(item.name, item.cohortYear))
+  }
+
+  const handleFirstSeenRow = new Map<string, number>()
+  const nameCohortFirstSeenRow = new Map<string, number>()
+
+  for (const row of rows) {
+    const { draft, rowNumber } = row
+
+    const handle = normalizeToken(draft.handle ?? '')
+    if (handle.length > 0) {
+      const firstSeen = handleFirstSeenRow.get(handle)
+      if (firstSeen !== undefined) {
+        warnings.push({
+          rowNumber,
+          message: `handle 与第 ${firstSeen} 行重复：${draft.handle}`,
+        })
+      } else {
+        handleFirstSeenRow.set(handle, rowNumber)
+      }
+
+      if (existingHandleSet.has(handle)) {
+        warnings.push({
+          rowNumber,
+          message: `handle 与现有队员重复：${draft.handle}`,
+        })
+      }
+    }
+
+    const nameCohortKey = toMemberNameCohortKey(draft.name, draft.cohortYear)
+    const firstSeenNameRow = nameCohortFirstSeenRow.get(nameCohortKey)
+    if (firstSeenNameRow !== undefined) {
+      warnings.push({
+        rowNumber,
+        message: `姓名 + 届别 与第 ${firstSeenNameRow} 行重复：${draft.name} / ${draft.cohortYear}`,
+      })
+    } else {
+      nameCohortFirstSeenRow.set(nameCohortKey, rowNumber)
+    }
+
+    if (existingNameCohortSet.has(nameCohortKey)) {
+      warnings.push({
+        rowNumber,
+        message: `姓名 + 届别 与现有队员重复：${draft.name} / ${draft.cohortYear}`,
+      })
+    }
+  }
+
+  return warnings
+}
+
+export function checkCompetitionImportRows(
+  rows: ImportDraftRow<CompetitionDraft>[],
+  existingCompetitions: Competition[],
+): ImportWarning[] {
+  const warnings: ImportWarning[] = []
+
+  const existingSignatureSet = new Set<string>()
+  for (const item of existingCompetitions) {
+    existingSignatureSet.add(
+      toCompetitionSignature({
+        title: item.title,
+        category: item.category,
+        seasonYear: item.seasonYear,
+        happenedAt: item.happenedAt,
+        contestLevel: item.contestLevel,
+        teamName: item.teamName,
+        rank: item.rank,
+        award: item.award,
+        memberIds: item.participants.map((member) => member.id),
+      }),
+    )
+  }
+
+  const firstSeenRowBySignature = new Map<string, number>()
+  for (const row of rows) {
+    const { draft, rowNumber } = row
+    const signature = toCompetitionSignature(draft)
+
+    const firstSeen = firstSeenRowBySignature.get(signature)
+    if (firstSeen !== undefined) {
+      warnings.push({
+        rowNumber,
+        message: `赛事记录与第 ${firstSeen} 行内容重复（标题/分类/赛季/战绩/成员）。`,
+      })
+    } else {
+      firstSeenRowBySignature.set(signature, rowNumber)
+    }
+
+    if (existingSignatureSet.has(signature)) {
+      warnings.push({
+        rowNumber,
+        message: '赛事记录与现有数据疑似重复（请确认是否重复导入）。',
+      })
+    }
+
+    if (draft.memberIds.length === 0 && (draft.rank || draft.award || draft.teamName)) {
+      warnings.push({
+        rowNumber,
+        message: '该行含战绩信息但未绑定成员，导入后将显示为无成员战绩。',
+      })
+    }
+  }
+
+  return warnings
+}
+
 // TODO: 补充 xlsx 二进制解析、GBK/ANSI 编码自动识别与转码。
+// TODO: 补充“按唯一键覆盖更新”模式（当前仅新增，不做 upsert）。

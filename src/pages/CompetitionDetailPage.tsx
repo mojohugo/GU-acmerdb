@@ -33,6 +33,18 @@ type StandingForm = {
   memberIds: string[]
 }
 
+type UploadTaskStatus = 'uploading' | 'success' | 'error'
+
+type UploadTask = {
+  id: string
+  fileName: string
+  mediaType: 'event_photo' | 'certificate'
+  standingId?: string
+  progress: number
+  status: UploadTaskStatus
+  message?: string
+}
+
 const MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024
 
 function createEmptyStandingForm(): StandingForm {
@@ -115,6 +127,29 @@ function isPhotoFile(file: File) {
   return file.type.toLowerCase().startsWith('image/')
 }
 
+function createUploadTaskId(prefix: string, index: number) {
+  return `${prefix}-${Date.now()}-${index}-${Math.random().toString(16).slice(2, 8)}`
+}
+
+function toProgressLabel(status: UploadTaskStatus) {
+  if (status === 'success') {
+    return '上传完成'
+  }
+  if (status === 'error') {
+    return '上传失败'
+  }
+  return '上传中'
+}
+
+function isImageMedia(item: CompetitionMedia) {
+  const mimeType = item.mimeType?.toLowerCase() ?? ''
+  if (mimeType.startsWith('image/')) {
+    return true
+  }
+
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(item.fileName)
+}
+
 export function CompetitionDetailPage() {
   const { competitionId } = useParams()
   const cached = competitionId ? peekCompetitionDetail(competitionId) : null
@@ -128,6 +163,7 @@ export function CompetitionDetailPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
+  const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([])
   const [createForms, setCreateForms] = useState<StandingForm[]>(() => [
     createEmptyStandingForm(),
   ])
@@ -137,6 +173,11 @@ export function CompetitionDetailPage() {
   const eventPhotos = useMemo(
     () => detail?.media?.filter((item) => item.mediaType === 'event_photo') ?? [],
     [detail],
+  )
+
+  const eventPhotoUploadTasks = useMemo(
+    () => uploadTasks.filter((task) => task.mediaType === 'event_photo'),
+    [uploadTasks],
   )
 
   const certificatesByStanding = useMemo(() => {
@@ -274,6 +315,31 @@ export function CompetitionDetailPage() {
     setActionSuccess(null)
   }
 
+  function replaceTasksByMediaType(
+    mediaType: 'event_photo' | 'certificate',
+    nextTasks: UploadTask[],
+    standingId?: string,
+  ) {
+    setUploadTasks((previous) => {
+      if (mediaType === 'event_photo') {
+        return [...previous.filter((item) => item.mediaType !== 'event_photo'), ...nextTasks]
+      }
+
+      return [
+        ...previous.filter(
+          (item) => !(item.mediaType === 'certificate' && item.standingId === standingId),
+        ),
+        ...nextTasks,
+      ]
+    })
+  }
+
+  function updateUploadTask(taskId: string, updater: (task: UploadTask) => UploadTask) {
+    setUploadTasks((previous) =>
+      previous.map((task) => (task.id === taskId ? updater(task) : task)),
+    )
+  }
+
   function updateCreateForm(
     rowIndex: number,
     updater: (previous: StandingForm) => StandingForm,
@@ -404,16 +470,37 @@ export function CompetitionDetailPage() {
 
     clearActionMessage()
     setActionLoading(true)
+    const taskList: UploadTask[] = files.map((file, index) => ({
+      id: createUploadTaskId('event-photo', index),
+      fileName: file.name,
+      mediaType: 'event_photo',
+      progress: 0,
+      status: 'uploading',
+    }))
+    replaceTasksByMediaType('event_photo', taskList)
 
     try {
       let uploadedCount = 0
 
-      for (const file of files) {
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index]
+        const task = taskList[index]
+
         if (!isPhotoFile(file)) {
+          updateUploadTask(task.id, (previous) => ({
+            ...previous,
+            status: 'error',
+            message: '不是图片格式',
+          }))
           throw new Error(`文件“${file.name}”不是图片格式，仅支持上传赛事照片（图片）`)
         }
 
         if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+          updateUploadTask(task.id, (previous) => ({
+            ...previous,
+            status: 'error',
+            message: '文件超过 20MB',
+          }))
           throw new Error(`文件“${file.name}”超过 20MB，请压缩后上传`)
         }
 
@@ -421,8 +508,20 @@ export function CompetitionDetailPage() {
           competitionId,
           mediaType: 'event_photo',
           file,
+          onProgress: (progress) => {
+            updateUploadTask(task.id, (previous) => ({
+              ...previous,
+              progress: progress.percent,
+            }))
+          },
         })
 
+        updateUploadTask(task.id, (previous) => ({
+          ...previous,
+          progress: 100,
+          status: 'success',
+          message: '上传完成',
+        }))
         uploadedCount += 1
       }
 
@@ -431,7 +530,15 @@ export function CompetitionDetailPage() {
         uploadedCount > 1 ? `已上传 ${uploadedCount} 张赛事照片` : '赛事照片上传成功',
       )
     } catch (uploadError) {
-      setActionError(uploadError instanceof Error ? uploadError.message : '赛事照片上传失败')
+      const reason = uploadError instanceof Error ? uploadError.message : '赛事照片上传失败'
+      setActionError(reason)
+      setUploadTasks((previous) =>
+        previous.map((task) =>
+          task.mediaType === 'event_photo' && task.status === 'uploading'
+            ? { ...task, status: 'error', message: reason }
+            : task,
+        ),
+      )
     } finally {
       setActionLoading(false)
     }
@@ -444,13 +551,32 @@ export function CompetitionDetailPage() {
 
     clearActionMessage()
     setActionLoading(true)
+    const task: UploadTask = {
+      id: createUploadTaskId(`certificate-${standingId}`, 0),
+      fileName: file.name,
+      mediaType: 'certificate',
+      standingId,
+      progress: 0,
+      status: 'uploading',
+    }
+    replaceTasksByMediaType('certificate', [task], standingId)
 
     try {
       if (!isCertificateFile(file)) {
+        updateUploadTask(task.id, (previous) => ({
+          ...previous,
+          status: 'error',
+          message: '仅支持图片或 PDF',
+        }))
         throw new Error('奖状仅支持图片或 PDF 文件')
       }
 
       if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+        updateUploadTask(task.id, (previous) => ({
+          ...previous,
+          status: 'error',
+          message: '文件超过 20MB',
+        }))
         throw new Error(`文件“${file.name}”超过 20MB，请压缩后上传`)
       }
 
@@ -459,12 +585,30 @@ export function CompetitionDetailPage() {
         mediaType: 'certificate',
         standingCompetitionId: standingId,
         file,
+        onProgress: (progress) => {
+          updateUploadTask(task.id, (previous) => ({
+            ...previous,
+            progress: progress.percent,
+          }))
+        },
       })
 
+      updateUploadTask(task.id, (previous) => ({
+        ...previous,
+        progress: 100,
+        status: 'success',
+        message: '上传完成',
+      }))
       await reloadDetail(competitionId)
       setActionSuccess('奖状上传成功')
     } catch (uploadError) {
-      setActionError(uploadError instanceof Error ? uploadError.message : '奖状上传失败')
+      const reason = uploadError instanceof Error ? uploadError.message : '奖状上传失败'
+      setActionError(reason)
+      updateUploadTask(task.id, (previous) => ({
+        ...previous,
+        status: 'error',
+        message: reason,
+      }))
     } finally {
       setActionLoading(false)
     }
@@ -608,6 +752,28 @@ export function CompetitionDetailPage() {
                 <span className="status-hint">单文件上限 20MB，支持多选上传</span>
               </div>
             ) : null}
+            {eventPhotoUploadTasks.length > 0 ? (
+              <div className="upload-progress-list inline-wrap">
+                {eventPhotoUploadTasks.map((task) => (
+                  <article key={task.id} className="upload-progress-item">
+                    <div className="upload-progress-head">
+                      <span>{task.fileName}</span>
+                      <strong>{task.progress}%</strong>
+                    </div>
+                    <div className="upload-progress-bar">
+                      <span
+                        className={`upload-progress-fill upload-progress-fill-${task.status}`}
+                        style={{ width: `${task.progress}%` }}
+                      />
+                    </div>
+                    <p className="status-hint">
+                      {toProgressLabel(task.status)}
+                      {task.message ? `：${task.message}` : ''}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </section>
 
           <section className="panel">
@@ -634,6 +800,9 @@ export function CompetitionDetailPage() {
                   <tbody>
                     {detail.standings.map((entry, index) => {
                       const certificates = certificatesByStanding.get(entry.id) ?? []
+                      const certificateUploadTasks = uploadTasks.filter(
+                        (task) => task.mediaType === 'certificate' && task.standingId === entry.id,
+                      )
 
                       return (
                         <tr key={entry.id}>
@@ -663,17 +832,42 @@ export function CompetitionDetailPage() {
                                 <ul className="attachment-list">
                                   {certificates.map((certificate) => (
                                     <li key={certificate.id} className="attachment-item">
-                                      <a
-                                        href={certificate.url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="inline-link"
-                                      >
-                                        {certificate.fileName}
-                                      </a>
-                                      <span className="status-hint">
-                                        {formatFileSize(certificate.fileSize)}
-                                      </span>
+                                      {isImageMedia(certificate) ? (
+                                        <a
+                                          href={certificate.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="attachment-thumb-link"
+                                        >
+                                          <img
+                                            src={certificate.url}
+                                            alt={certificate.fileName}
+                                            loading="lazy"
+                                          />
+                                        </a>
+                                      ) : (
+                                        <a
+                                          href={certificate.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="attachment-file-chip"
+                                        >
+                                          PDF
+                                        </a>
+                                      )}
+                                      <div className="attachment-meta">
+                                        <a
+                                          href={certificate.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-link"
+                                        >
+                                          {certificate.fileName}
+                                        </a>
+                                        <span className="status-hint">
+                                          {formatFileSize(certificate.fileSize)}
+                                        </span>
+                                      </div>
                                       {isAdmin ? (
                                         <button
                                           type="button"
@@ -690,18 +884,42 @@ export function CompetitionDetailPage() {
                               )}
 
                               {isAdmin ? (
-                                <label className="btn btn-small">
-                                  上传奖状
-                                  <input
-                                    type="file"
-                                    hidden
-                                    accept="image/*,application/pdf"
-                                    onChange={(event) =>
-                                      void onCertificateInputChange(entry.id, event)
-                                    }
-                                    disabled={actionLoading}
-                                  />
-                                </label>
+                                <>
+                                  <label className="btn btn-small">
+                                    上传奖状
+                                    <input
+                                      type="file"
+                                      hidden
+                                      accept="image/*,application/pdf"
+                                      onChange={(event) =>
+                                        void onCertificateInputChange(entry.id, event)
+                                      }
+                                      disabled={actionLoading}
+                                    />
+                                  </label>
+                                  {certificateUploadTasks.length > 0 ? (
+                                    <div className="upload-progress-list">
+                                      {certificateUploadTasks.map((task) => (
+                                        <article key={task.id} className="upload-progress-item">
+                                          <div className="upload-progress-head">
+                                            <span>{task.fileName}</span>
+                                            <strong>{task.progress}%</strong>
+                                          </div>
+                                          <div className="upload-progress-bar">
+                                            <span
+                                              className={`upload-progress-fill upload-progress-fill-${task.status}`}
+                                              style={{ width: `${task.progress}%` }}
+                                            />
+                                          </div>
+                                          <p className="status-hint">
+                                            {toProgressLabel(task.status)}
+                                            {task.message ? `：${task.message}` : ''}
+                                          </p>
+                                        </article>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </>
                               ) : null}
                             </div>
                           </td>
@@ -981,7 +1199,7 @@ export function CompetitionDetailPage() {
           ) : null}
 
           <p className="todo-note">
-            TODO: 后续补充“删除附件时同步回收 OSS 对象 + 图片压缩与水印 + 上传进度条 + 批量拖拽上传”。
+            TODO: 后续补充“删除附件时同步回收 OSS 对象 + 图片压缩与水印 + 上传失败重试/断点续传 + 批量拖拽上传”。
           </p>
         </>
       ) : null}

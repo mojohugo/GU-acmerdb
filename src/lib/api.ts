@@ -1136,6 +1136,13 @@ type UploadCompetitionMediaInput = {
   file: File
   standingCompetitionId?: string
   remark?: string
+  onProgress?: (progress: UploadProgress) => void
+}
+
+export type UploadProgress = {
+  loaded: number
+  total: number | null
+  percent: number
 }
 
 type SignedOssUploadResponse = {
@@ -1232,6 +1239,70 @@ function getFunctionErrorStatus(error: unknown) {
 function isInvalidJwtFunctionError(error: unknown, message: string) {
   const normalizedMessage = message.toLowerCase()
   return getFunctionErrorStatus(error) === 401 || /invalid jwt/.test(normalizedMessage)
+}
+
+function putFileToSignedUrlWithProgress(options: {
+  uploadUrl: string
+  contentType: string
+  file: File
+  onProgress?: (progress: UploadProgress) => void
+}) {
+  // TODO: 增加上传失败自动重试与断点续传能力（需要后端分片签名/合并支持）。
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('PUT', options.uploadUrl)
+    request.setRequestHeader('Content-Type', options.contentType)
+
+    if (options.onProgress) {
+      request.upload.onprogress = (event) => {
+        const total = event.lengthComputable ? event.total : null
+        const percent =
+          total && total > 0 ? Math.min(100, Math.round((event.loaded / total) * 100)) : 0
+
+        options.onProgress?.({
+          loaded: event.loaded,
+          total,
+          percent,
+        })
+      }
+    }
+
+    request.onerror = () => {
+      reject(
+        new Error(
+          '上传到 OSS 失败：网络异常（请检查 OSS CORS、Endpoint 与当前网络连通性）。',
+        ),
+      )
+    }
+
+    request.onabort = () => {
+      reject(new Error('上传到 OSS 已被取消。'))
+    }
+
+    request.onload = () => {
+      const status = request.status
+      if (status >= 200 && status < 300) {
+        options.onProgress?.({
+          loaded: options.file.size,
+          total: options.file.size,
+          percent: 100,
+        })
+        resolve()
+        return
+      }
+
+      const detail = request.responseText?.trim()
+      reject(
+        new Error(
+          detail
+            ? `上传到 OSS 失败（HTTP ${status}）：${detail.slice(0, 200)}`
+            : `上传到 OSS 失败（HTTP ${status}）`,
+        ),
+      )
+    }
+
+    request.send(options.file)
+  })
 }
 
 export async function createCompetitionMedia(
@@ -1346,35 +1417,22 @@ export async function uploadCompetitionMedia(
     throw new Error('上传签名服务返回异常，请检查 oss-sign-upload 函数配置')
   }
 
-  let uploadResponse: Response
+  input.onProgress?.({
+    loaded: 0,
+    total: fileSize,
+    percent: 0,
+  })
+
   try {
-    uploadResponse = await fetch(signedData.uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': signedData.contentType || contentType,
-      },
-      body: input.file,
+    await putFileToSignedUrlWithProgress({
+      uploadUrl: signedData.uploadUrl,
+      contentType: signedData.contentType || contentType,
+      file: input.file,
+      onProgress: input.onProgress,
     })
   } catch (uploadError) {
     const reason = uploadError instanceof Error ? uploadError.message : 'unknown error'
-    throw new Error(
-      `上传到 OSS 失败：浏览器无法访问上传地址（常见原因：OSS CORS 未配置、OSS_ENDPOINT 填错）。原始错误：${reason}`,
-    )
-  }
-
-  if (!uploadResponse.ok) {
-    let detail = ''
-    try {
-      detail = (await uploadResponse.text()).trim()
-    } catch {
-      detail = ''
-    }
-
-    throw new Error(
-      detail.length > 0
-        ? `上传到 OSS 失败（HTTP ${uploadResponse.status}）：${detail.slice(0, 200)}`
-        : `上传到 OSS 失败（HTTP ${uploadResponse.status}）`,
-    )
+    throw new Error(`上传到 OSS 失败：${reason}`)
   }
 
   return createCompetitionMedia({
