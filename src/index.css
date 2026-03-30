@@ -14,6 +14,9 @@
 
   --primary: #3e62c8;
   --primary-dark: #2f4faa;
+  --bili-pink: #fb7299;
+  --bili-pink-soft: rgba(251, 114, 153, 0.12);
+  --bili-blue: #00a1d6;
   --danger: #b7475d;
   --success: #1f9e74;
 
@@ -87,19 +90,19 @@ p {
 
 .topbar {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   border-radius: var(--radius-lg);
-  padding: 18px 20px;
-  background: #22375f;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 3px 10px rgba(26, 39, 72, 0.14);
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(115, 129, 164, 0.2);
+  box-shadow: 0 6px 20px rgba(54, 68, 101, 0.1);
+  backdrop-filter: blur(10px);
 }
 
 .topbar-navbar {
   position: sticky;
-  top: 10px;
-  z-index: 30;
-  padding: 10px 12px;
+  top: 8px;
+  z-index: 40;
 }
 
 .topbar::before {
@@ -117,127 +120,157 @@ p {
 .topbar-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 18px;
+  align-items: center;
+  gap: 10px 14px;
   flex-wrap: wrap;
 }
 
 .topbar-head-navbar {
-  align-items: center;
-  gap: 10px 14px;
+  flex-wrap: nowrap;
 }
 
 .topbar-brand {
-  display: grid;
-  gap: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .topbar-brand-navbar {
-  gap: 2px;
+  min-width: 220px;
+  flex-shrink: 0;
+}
+
+.topbar-brand-link {
+  text-decoration: none;
+}
+
+.topbar-brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--bili-blue), var(--bili-pink));
+}
+
+.topbar-brand-copy {
+  display: grid;
+  gap: 0;
 }
 
 .topbar-kicker {
-  font-size: 11px;
-  letter-spacing: 0.12em;
+  font-size: 10px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 700;
-  color: rgba(229, 236, 252, 0.8);
+  color: #8a94ad;
 }
 
 .topbar h1 {
+  margin-top: 1px;
+  font-size: 18px;
+  line-height: 1.1;
   font-weight: 800;
-  letter-spacing: 0.02em;
-  font-size: clamp(18px, 1.6vw, 22px);
-  line-height: 1.15;
-  color: #f4f8ff;
-  text-shadow: none;
+  color: #28344f;
+  letter-spacing: 0.01em;
 }
 
 .topbar-subtitle {
-  color: rgba(235, 242, 255, 0.82);
-  font-size: 12px;
-  max-width: 48ch;
-}
-
-.topbar-status {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.badge-chip {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #f5f8ff;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.09);
-}
-
-.badge-chip-live {
-  border-color: rgba(153, 198, 255, 0.56);
-  background: rgba(101, 147, 214, 0.3);
-}
-
-.badge-chip-anime {
-  border-color: rgba(188, 207, 255, 0.46);
-  background: rgba(90, 114, 174, 0.28);
+  color: #96a0b7;
+  font-size: 11px;
+  margin-top: 1px;
 }
 
 .topbar-nav {
-  margin-top: 14px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
+  flex-wrap: nowrap;
+  gap: 6px;
 }
 
 .topbar-nav-navbar {
   margin-top: 0;
-  margin-left: auto;
+  margin-left: 4px;
+  flex: 1;
   align-items: center;
-  justify-content: flex-end;
-  gap: 7px;
+  justify-content: center;
+  min-width: 0;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(126, 139, 173, 0.22);
+  background: linear-gradient(180deg, #f8fafe 0%, #f2f5fc 100%);
 }
 
 .nav-link {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 11px;
+  justify-content: center;
+  gap: 0;
+  padding: 7px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(248, 251, 255, 0.92);
+  border: 0;
+  background: transparent;
+  color: #5d6882;
   text-decoration: none;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  position: relative;
   transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease;
+    color 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .nav-link-icon {
-  width: 14px;
-  height: 14px;
+  display: none;
 }
 
 .nav-link:hover {
-  border-color: rgba(255, 255, 255, 0.52);
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: none;
+  color: #364462;
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .nav-link-active {
-  color: #1f2e5f;
-  border-color: rgba(255, 255, 255, 0.72);
-  background: rgba(244, 248, 255, 0.96);
-  box-shadow: none;
+  color: var(--bili-pink);
+  background: #fff;
+  box-shadow: 0 2px 7px rgba(61, 78, 118, 0.12);
+}
+
+.nav-link-active::after {
+  content: '';
+  position: absolute;
+  left: 13px;
+  right: 13px;
+  bottom: -5px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--bili-pink);
+}
+
+.topbar-about-link {
+  flex-shrink: 0;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #55617d;
+  border: 1px solid rgba(126, 139, 173, 0.28);
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.82);
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.topbar-about-link:hover {
+  color: var(--bili-pink);
+  border-color: rgba(251, 114, 153, 0.36);
+  background: var(--bili-pink-soft);
 }
 
 .main-panel {
@@ -1503,25 +1536,37 @@ tbody tr:last-child td {
   }
 
   .topbar-head-navbar {
+    flex-wrap: wrap;
     align-items: flex-start;
   }
 
+  .topbar-brand-navbar {
+    min-width: 0;
+  }
+
   .topbar-nav-navbar {
+    order: 3;
     margin-left: 0;
     width: 100%;
     justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .topbar-about-link {
+    margin-left: auto;
   }
 }
 
 @media (max-width: 760px) {
   .app-shell {
-    width: min(1240px, 95vw);
+    width: min(1240px, 96vw);
     padding-top: 14px;
   }
 
   .topbar {
     border-radius: var(--radius-md);
-    padding: 10px;
+    padding: 8px;
   }
 
   .panel,
@@ -1531,10 +1576,39 @@ tbody tr:last-child td {
   }
 
   .topbar h1 {
-    font-size: 18px;
+    font-size: 16px;
   }
 
+  .topbar-kicker,
   .topbar-subtitle {
     display: none;
+  }
+
+  .topbar-brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    font-size: 14px;
+  }
+
+  .topbar-nav-navbar {
+    gap: 4px;
+    padding: 3px;
+  }
+
+  .nav-link {
+    padding: 7px 11px;
+    font-size: 13px;
+  }
+
+  .nav-link-active::after {
+    left: 10px;
+    right: 10px;
+    bottom: -4px;
+  }
+
+  .topbar-about-link {
+    padding: 6px 10px;
+    font-size: 12px;
   }
 }
