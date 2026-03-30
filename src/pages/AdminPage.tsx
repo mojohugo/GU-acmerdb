@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
@@ -17,7 +17,9 @@ import {
   updateCompetition,
   updateMember,
 } from '../lib/api'
+import { parseCompetitionImportCsv, parseMemberImportCsv } from '../lib/batchImport'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
+import { downloadCsv } from '../lib/csv'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type {
   Competition,
@@ -74,6 +76,69 @@ const initialCompetitionForm: CompetitionForm = {
   remark: '',
 }
 
+function createDateStamp() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}${month}${day}`
+}
+
+function downloadMemberImportTemplate() {
+  downloadCsv({
+    filename: `gu-acmerdb-members-import-template-${createDateStamp()}.csv`,
+    headers: ['name', 'cohortYear', 'handle', 'major', 'isActive'],
+    rows: [
+      ['张三', 2024, 'alice', '计算机科学与技术', 'true'],
+      ['李四', 2023, 'bob', '软件工程', 'false'],
+    ],
+  })
+}
+
+function downloadCompetitionImportTemplate() {
+  downloadCsv({
+    filename: `gu-acmerdb-competitions-import-template-${createDateStamp()}.csv`,
+    headers: [
+      'title',
+      'category',
+      'seasonYear',
+      'contestLevel',
+      'happenedAt',
+      'teamName',
+      'rank',
+      'award',
+      'members',
+      'remark',
+    ],
+    rows: [
+      [
+        'ICPC 昆明站',
+        'icpc_regional',
+        2025,
+        '区域赛',
+        '2025-11-15',
+        'GUACM-1',
+        '第 10 名',
+        '银奖',
+        'alice;bob',
+        '导入示例',
+      ],
+      [
+        '校赛春季赛',
+        '校赛',
+        2026,
+        '校赛',
+        '2026-03-10',
+        '新生训练队',
+        '冠军',
+        '一等奖',
+        '张三;李四',
+        '支持中文分类和中文姓名匹配',
+      ],
+    ],
+  })
+}
+
 function toMemberDraft(form: MemberForm): MemberDraft {
   const cohortYear = Number(form.cohortYear)
   if (!form.name.trim() || !Number.isFinite(cohortYear) || cohortYear <= 0) {
@@ -126,6 +191,8 @@ export function AdminPage() {
   const [competitionForm, setCompetitionForm] = useState<CompetitionForm>(
     initialCompetitionForm,
   )
+  const [memberImportText, setMemberImportText] = useState('')
+  const [competitionImportText, setCompetitionImportText] = useState('')
 
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editMemberForm, setEditMemberForm] = useState<MemberForm>(initialMemberForm)
@@ -305,6 +372,112 @@ export function AdminPage() {
       setSuccess('比赛创建成功')
     } catch (e) {
       setError(e instanceof Error ? e.message : '创建比赛失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function fillImportTextFromFile(
+    event: ChangeEvent<HTMLInputElement>,
+    target: 'member' | 'competition',
+  ) {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+
+    clearMsg()
+
+    try {
+      const text = await file.text()
+      const normalized = text.replace(/^\uFEFF/, '')
+      if (target === 'member') {
+        setMemberImportText(normalized)
+      } else {
+        setCompetitionImportText(normalized)
+      }
+      setSuccess(`已读取文件：${file.name}`)
+    } catch (e) {
+      setError(
+        e instanceof Error ? `读取文件失败：${e.message}` : '读取文件失败，请检查文件编码后重试',
+      )
+    } finally {
+      event.target.value = ''
+    }
+  }
+
+  async function submitMemberImport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    clearMsg()
+    setSubmitting(true)
+
+    let importedCount = 0
+    try {
+      const rows = parseMemberImportCsv(memberImportText)
+
+      for (const row of rows) {
+        try {
+          await createMember(row.draft)
+          importedCount += 1
+        } catch (e) {
+          const reason = e instanceof Error ? e.message : '写入失败'
+          throw new Error(
+            importedCount > 0
+              ? `已成功导入 ${importedCount} 条，CSV 第 ${row.rowNumber} 行失败：${reason}`
+              : `CSV 第 ${row.rowNumber} 行导入失败：${reason}`,
+          )
+        }
+      }
+
+      await loadData()
+      setMemberImportText('')
+      setSuccess(`队员批量导入完成，共 ${importedCount} 条`)
+    } catch (e) {
+      if (importedCount > 0) {
+        await loadData()
+      }
+      setError(e instanceof Error ? e.message : '批量导入队员失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function submitCompetitionImport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    clearMsg()
+    setSubmitting(true)
+
+    let importedCount = 0
+    try {
+      const latestMembers = members.length > 0 ? members : await fetchMembers()
+      if (members.length === 0 && latestMembers.length > 0) {
+        setMembers(latestMembers)
+      }
+
+      const rows = parseCompetitionImportCsv(competitionImportText, latestMembers)
+
+      for (const row of rows) {
+        try {
+          await createCompetition(row.draft)
+          importedCount += 1
+        } catch (e) {
+          const reason = e instanceof Error ? e.message : '写入失败'
+          throw new Error(
+            importedCount > 0
+              ? `已成功导入 ${importedCount} 条，CSV 第 ${row.rowNumber} 行失败：${reason}`
+              : `CSV 第 ${row.rowNumber} 行导入失败：${reason}`,
+          )
+        }
+      }
+
+      await loadData()
+      setCompetitionImportText('')
+      setSuccess(`赛事批量导入完成，共 ${importedCount} 条`)
+    } catch (e) {
+      if (importedCount > 0) {
+        await loadData()
+      }
+      setError(e instanceof Error ? e.message : '批量导入赛事失败')
     } finally {
       setSubmitting(false)
     }
@@ -596,6 +769,97 @@ export function AdminPage() {
 
           <section className="panel">
             <div className="panel-header">
+              <h3>批量导入</h3>
+              <p>支持 UTF-8 CSV 文件导入，也支持直接粘贴 CSV 文本（建议先下载模板）。</p>
+            </div>
+
+            <div className="sub-panel">
+              <h4>队员批量导入</h4>
+              <p className="status-hint">
+                必填列：name、cohortYear；可选列：handle、major、isActive（支持 true/false、是/否、在队/离队）。
+              </p>
+              <div className="hero-actions">
+                <button className="btn" type="button" onClick={downloadMemberImportTemplate}>
+                  下载队员模板 CSV
+                </button>
+                <button className="btn" type="button" onClick={() => setMemberImportText('')}>
+                  清空文本
+                </button>
+              </div>
+              <form className="form-grid inline-wrap" onSubmit={submitMemberImport}>
+                <label className="full-width">
+                  上传 CSV（UTF-8）
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={(event) => void fillImportTextFromFile(event, 'member')}
+                  />
+                </label>
+                <label className="full-width">
+                  CSV 文本
+                  <textarea
+                    rows={7}
+                    value={memberImportText}
+                    onChange={(event) => setMemberImportText(event.target.value)}
+                    placeholder="name,cohortYear,handle,major,isActive"
+                    required
+                  />
+                </label>
+                <button className="btn btn-solid" disabled={submitting}>
+                  {submitting ? '导入中...' : '批量导入队员'}
+                </button>
+              </form>
+            </div>
+
+            <div className="sub-panel inline-wrap">
+              <h4>赛事 / 战绩批量导入</h4>
+              <p className="status-hint">
+                必填列：title、category、seasonYear；members 列可填队员姓名、handle 或 ID（多个值用逗号/分号分隔）。
+              </p>
+              <div className="hero-actions">
+                <button className="btn" type="button" onClick={downloadCompetitionImportTemplate}>
+                  下载赛事模板 CSV
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setCompetitionImportText('')}
+                >
+                  清空文本
+                </button>
+              </div>
+              <form className="form-grid inline-wrap" onSubmit={submitCompetitionImport}>
+                <label className="full-width">
+                  上传 CSV（UTF-8）
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={(event) => void fillImportTextFromFile(event, 'competition')}
+                  />
+                </label>
+                <label className="full-width">
+                  CSV 文本
+                  <textarea
+                    rows={8}
+                    value={competitionImportText}
+                    onChange={(event) => setCompetitionImportText(event.target.value)}
+                    placeholder="title,category,seasonYear,contestLevel,happenedAt,teamName,rank,award,members,remark"
+                    required
+                  />
+                </label>
+                <button className="btn btn-solid" disabled={submitting}>
+                  {submitting ? '导入中...' : '批量导入赛事'}
+                </button>
+              </form>
+            </div>
+
+            <p className="todo-note">
+              TODO: 批量导入后续补充“导入预检（仅校验不写库）+ Excel(xlsx) 直传解析 + 失败自动回滚”。
+            </p>
+          </section>
+
+          <section className="panel">
+            <div className="panel-header">
               <h3>队员列表 / 编辑</h3>
             </div>
             <div className="table-scroll">
@@ -862,7 +1126,7 @@ export function AdminPage() {
             ) : null}
 
             <p className="todo-note">
-              TODO: 后台待补充批量导入、批量录入模板（复制上一条/粘贴多行）、比赛主档案与战绩拆表、附件上传进度与 OSS 文件回收。
+              TODO: 后台待补充批量录入模板（复制上一条/粘贴多行）、比赛主档案与战绩拆表、附件上传进度与 OSS 文件回收。
             </p>
           </section>
         </>
