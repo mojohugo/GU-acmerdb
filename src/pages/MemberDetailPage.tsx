@@ -83,6 +83,24 @@ export function MemberDetailPage() {
     return detail.competitions.slice(start, start + pageSize)
   }, [detail, page, pageSize])
 
+  const profileSummaryItems = useMemo(() => {
+    if (!detail) {
+      return []
+    }
+
+    const awardCount = detail.competitions.filter((competition) => Boolean(competition.award)).length
+    const rankedCount = detail.competitions.filter((competition) => Boolean(competition.rank)).length
+    const latestCompetitionDate =
+      detail.competitions.find((competition) => Boolean(competition.happenedAt))?.happenedAt ?? '-'
+
+    return [
+      { label: '参赛记录', value: `${detail.competitions.length} 场` },
+      { label: '获奖记录', value: `${awardCount} 次` },
+      { label: '有效名次', value: `${rankedCount} 条` },
+      { label: '最近参赛', value: latestCompetitionDate },
+    ]
+  }, [detail])
+
   useEffect(() => {
     setPage(1)
   }, [memberId, pageSize])
@@ -126,6 +144,14 @@ export function MemberDetailPage() {
                 <span>专业</span>
                 <strong>{detail.major ?? '-'}</strong>
               </article>
+            </div>
+            <div className="member-profile-stats">
+              {profileSummaryItems.map((item) => (
+                <article key={item.label} className="member-profile-stat-item">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </article>
+              ))}
             </div>
             {detail.bio ? (
               <article className="bio-block member-bio">

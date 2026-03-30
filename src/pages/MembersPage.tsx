@@ -363,14 +363,14 @@ export function MembersPage() {
   }
 
   return (
-    <div className="stack">
-      <section className="panel">
+    <div className="stack members-page">
+      <section className="panel members-panel">
         <div className="panel-header">
           <h2>队员列表</h2>
           <p>支持关键词、届别、在队状态组合筛选（URL 会自动记住筛选条件）。</p>
         </div>
 
-        <div className="filters">
+        <div className="filters members-filters">
           <label>
             关键词
             <input
@@ -464,7 +464,7 @@ export function MembersPage() {
           </label>
         </div>
 
-        <div className="filters-toolbar">
+        <div className="filters-toolbar members-toolbar">
           <button
             className="btn"
             type="button"
@@ -524,7 +524,17 @@ export function MembersPage() {
                         <td>{member.cohortYear} 级</td>
                         <td>{member.handle ?? '-'}</td>
                         <td>{member.major ?? '-'}</td>
-                        <td>{member.isActive ? '在队' : '已毕业/离队'}</td>
+                        <td>
+                          <span
+                            className={`member-list-status-tag ${
+                              member.isActive
+                                ? 'member-list-status-tag-active'
+                                : 'member-list-status-tag-inactive'
+                            }`}
+                          >
+                            {member.isActive ? '在队' : '已毕业/离队'}
+                          </span>
+                        </td>
                         <td>
                           <Link className="inline-link" to={`/member/${member.id}`}>
                             查看

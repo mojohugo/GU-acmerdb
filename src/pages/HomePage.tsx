@@ -135,16 +135,22 @@ export function HomePage() {
               <span>管理员在线维护</span>
             </div>
           </div>
-          <div className="hero-actions home-hero-actions">
-            <Link className="btn btn-solid" to="/members">
-              查看队员库
-            </Link>
-            <Link className="btn" to="/cohorts">
-              查看赛事时间线
-            </Link>
-            <Link className="btn" to="/awards">
-              获奖查询与统计
-            </Link>
+          <div className="home-hero-side">
+            <p className="home-hero-side-title">常用入口</p>
+            <div className="hero-actions home-hero-actions">
+              <Link className="btn btn-solid" to="/members">
+                查看队员库
+              </Link>
+              <Link className="btn" to="/cohorts">
+                查看赛事时间线
+              </Link>
+              <Link className="btn" to="/awards">
+                获奖查询与统计
+              </Link>
+            </div>
+            <p className="home-hero-side-note">
+              数据维护请前往管理页，公开页默认展示最近录入内容。
+            </p>
           </div>
         </div>
       </section>
