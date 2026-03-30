@@ -28,6 +28,11 @@ type AwardRecord = {
   awardTone: AwardTone
 }
 
+type IndexedAwardRecord = AwardRecord & {
+  searchText: string
+  happenedAtTime: number
+}
+
 type StatsSummary = {
   totalRecords: number
   uniqueCompetitions: number
@@ -115,12 +120,18 @@ function toRecordTime(record: AwardRecord) {
   return 0
 }
 
-function sortRecordDesc(a: AwardRecord, b: AwardRecord) {
-  const aTime = toRecordTime(a)
-  const bTime = toRecordTime(b)
+function toIndexedAwardRecord(item: Competition): IndexedAwardRecord {
+  const record = toAwardRecord(item)
+  return {
+    ...record,
+    searchText: toSearchText(record),
+    happenedAtTime: toRecordTime(record),
+  }
+}
 
-  if (aTime !== bTime) {
-    return bTime - aTime
+function sortRecordDesc(a: IndexedAwardRecord, b: IndexedAwardRecord) {
+  if (a.happenedAtTime !== b.happenedAtTime) {
+    return b.happenedAtTime - a.happenedAtTime
   }
 
   return b.id.localeCompare(a.id)
@@ -243,7 +254,7 @@ export function AwardsPage() {
   }, [])
 
   const allAwardRecords = useMemo(
-    () => competitions.filter(hasAwardRecord).map(toAwardRecord).toSorted(sortRecordDesc),
+    () => competitions.filter(hasAwardRecord).map(toIndexedAwardRecord).toSorted(sortRecordDesc),
     [competitions],
   )
 
@@ -272,7 +283,7 @@ export function AwardsPage() {
       }
 
       if (normalizedKeyword.length > 0) {
-        return toSearchText(record).includes(normalizedKeyword)
+        return record.searchText.includes(normalizedKeyword)
       }
 
       return true

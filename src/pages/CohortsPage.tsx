@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { fetchCohortOverview, peekCohortOverview } from '../lib/api'
+import { fetchCompetitionTimeline, peekCompetitionTimeline } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
 import { downloadCsv } from '../lib/csv'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -11,6 +11,11 @@ import type { Competition, ContestCategory } from '../types'
 
 type CategoryFilter = ContestCategory | 'all'
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
+
+type IndexedTimelineCompetition = {
+  competition: Competition
+  searchText: string
+}
 
 function toSearchText(competition: Competition) {
   return [
@@ -82,7 +87,7 @@ function exportCompetitionsAsCsv(competitions: Competition[]) {
 }
 
 export function CohortsPage() {
-  const cachedCompetitions = peekCohortOverview()
+  const cachedCompetitions = peekCompetitionTimeline()
   const [competitions, setCompetitions] = useState<Competition[]>(
     () => cachedCompetitions ?? [],
   )
@@ -105,7 +110,7 @@ export function CohortsPage() {
     let disposed = false
 
     async function load() {
-      const cached = peekCohortOverview()
+      const cached = peekCompetitionTimeline()
       if (cached) {
         setCompetitions(cached)
         setLoading(false)
@@ -115,7 +120,7 @@ export function CohortsPage() {
       setError(null)
 
       try {
-        const result = await fetchCohortOverview()
+        const result = await fetchCompetitionTimeline()
         if (!disposed) {
           setCompetitions(result)
         }
@@ -137,11 +142,33 @@ export function CohortsPage() {
     }
   }, [])
 
+  const indexedCompetitions = useMemo<IndexedTimelineCompetition[]>(() => {
+    const groupMap = new Map<string, IndexedTimelineCompetition>()
+
+    for (const competition of competitions) {
+      const groupKey = toCompetitionGroupKey(competition)
+      const current = groupMap.get(groupKey)
+      if (!current) {
+        groupMap.set(groupKey, {
+          competition,
+          searchText: toSearchText(competition),
+        })
+      } else {
+        current.searchText = `${current.searchText} ${toSearchText(competition)}`
+      }
+    }
+
+    return [...groupMap.values()].toSorted((a, b) =>
+      sortByTimeDesc(a.competition, b.competition),
+    )
+  }, [competitions])
+
   const sortedCompetitions = useMemo(() => {
     const normalizedKeyword = debouncedKeyword.trim().toLowerCase()
 
-    const filtered = competitions.filter((competition) => {
-        if (categoryFilter !== 'all' && competition.category !== categoryFilter) {
+    return indexedCompetitions
+      .filter((item) => {
+        if (categoryFilter !== 'all' && item.competition.category !== categoryFilter) {
           return false
         }
 
@@ -149,19 +176,10 @@ export function CohortsPage() {
           return true
         }
 
-        return toSearchText(competition).includes(normalizedKeyword)
+        return item.searchText.includes(normalizedKeyword)
       })
-
-    const groupMap = new Map<string, Competition>()
-    for (const item of filtered) {
-      const groupKey = toCompetitionGroupKey(item)
-      if (!groupMap.has(groupKey)) {
-        groupMap.set(groupKey, item)
-      }
-    }
-
-    return [...groupMap.values()].toSorted(sortByTimeDesc)
-  }, [categoryFilter, competitions, debouncedKeyword])
+      .map((item) => item.competition)
+  }, [categoryFilter, debouncedKeyword, indexedCompetitions])
 
   const pageCount = useMemo(
     () => (sortedCompetitions.length > 0 ? Math.ceil(sortedCompetitions.length / pageSize) : 1),

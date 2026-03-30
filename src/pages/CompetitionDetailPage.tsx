@@ -180,6 +180,7 @@ export function CompetitionDetailPage() {
   const [createForms, setCreateForms] = useState<StandingForm[]>(() => [
     createEmptyStandingForm(),
   ])
+  const [activeCreateMemberPickerRow, setActiveCreateMemberPickerRow] = useState(0)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<StandingForm>(() => createEmptyStandingForm())
   const debouncedMemberPickerKeyword = useDebouncedValue(memberPickerKeyword, 200)
@@ -280,6 +281,16 @@ export function CompetitionDetailPage() {
     }
     return map
   }, [uploadTasks])
+
+  const createFormSelectedMemberSets = useMemo(
+    () => createForms.map((form) => new Set(form.memberIds)),
+    [createForms],
+  )
+
+  const editFormSelectedMemberSet = useMemo(
+    () => new Set(editForm.memberIds),
+    [editForm.memberIds],
+  )
 
   async function reloadDetail(id: string) {
     const latest = await fetchCompetitionDetail(id)
@@ -412,6 +423,12 @@ export function CompetitionDetailPage() {
     setMemberPickerPage((previous) => Math.min(Math.max(previous, 1), memberPickerPageCount))
   }, [memberPickerPageCount])
 
+  useEffect(() => {
+    setActiveCreateMemberPickerRow((previous) =>
+      Math.min(Math.max(previous, 0), Math.max(0, createForms.length - 1)),
+    )
+  }, [createForms.length])
+
   function clearActionMessage() {
     setActionError(null)
     setActionSuccess(null)
@@ -453,6 +470,7 @@ export function CompetitionDetailPage() {
 
   function addCreateFormRow() {
     setCreateForms((previous) => [...previous, createEmptyStandingForm()])
+    setActiveCreateMemberPickerRow(createForms.length)
   }
 
   function removeCreateFormRow(rowIndex: number) {
@@ -462,6 +480,15 @@ export function CompetitionDetailPage() {
       }
 
       return previous.filter((_, index) => index !== rowIndex)
+    })
+    setActiveCreateMemberPickerRow((previous) => {
+      if (previous === rowIndex) {
+        return Math.max(0, previous - 1)
+      }
+      if (previous > rowIndex) {
+        return previous - 1
+      }
+      return previous
     })
   }
 
@@ -509,6 +536,7 @@ export function CompetitionDetailPage() {
       }
 
       setCreateForms([createEmptyStandingForm()])
+      setActiveCreateMemberPickerRow(0)
       await reloadDetail(competitionId)
       setActionSuccess(
         drafts.length > 1 ? `已批量新增 ${drafts.length} 条战绩` : '战绩新增成功',
@@ -1297,8 +1325,21 @@ export function CompetitionDetailPage() {
                           />
                         </label>
                         <div className="full-width member-picker">
-                          <p>参赛队员（至少 1 人）</p>
-                          {members.length === 0 ? (
+                          <div className="action-row">
+                            <p>参赛队员（至少 1 人）</p>
+                            <button
+                              className="btn btn-small"
+                              type="button"
+                              onClick={() => setActiveCreateMemberPickerRow(rowIndex)}
+                              disabled={activeCreateMemberPickerRow === rowIndex}
+                            >
+                              {activeCreateMemberPickerRow === rowIndex ? '当前行正在选择' : '切换到本行选择'}
+                            </button>
+                            <span className="status-hint">已选 {form.memberIds.length} 人</span>
+                          </div>
+                          {activeCreateMemberPickerRow !== rowIndex ? (
+                            <p className="status-hint">仅渲染当前编辑行的成员选择器，以提升批量录入性能。</p>
+                          ) : members.length === 0 ? (
                             <p className="status-hint">暂无队员，请先到管理后台创建队员。</p>
                           ) : filteredMembersForPicker.length === 0 ? (
                             <p className="status-hint">没有匹配成员，请调整搜索关键词。</p>
@@ -1308,7 +1349,7 @@ export function CompetitionDetailPage() {
                                 <label key={`${rowIndex}-${member.id}`} className="member-picker-item">
                                   <input
                                     type="checkbox"
-                                    checked={form.memberIds.includes(member.id)}
+                                    checked={createFormSelectedMemberSets[rowIndex]?.has(member.id) ?? false}
                                     onChange={(event) =>
                                       updateCreateForm(rowIndex, (previous) => ({
                                         ...previous,
@@ -1345,7 +1386,10 @@ export function CompetitionDetailPage() {
                   <button
                     className="btn"
                     type="button"
-                    onClick={() => setCreateForms([createEmptyStandingForm()])}
+                    onClick={() => {
+                      setCreateForms([createEmptyStandingForm()])
+                      setActiveCreateMemberPickerRow(0)
+                    }}
                     disabled={actionLoading}
                   >
                     清空录入
@@ -1412,7 +1456,7 @@ export function CompetitionDetailPage() {
                           <label key={member.id} className="member-picker-item">
                             <input
                               type="checkbox"
-                              checked={editForm.memberIds.includes(member.id)}
+                              checked={editFormSelectedMemberSet.has(member.id)}
                               onChange={(event) =>
                                 setEditForm((prev) => ({
                                   ...prev,

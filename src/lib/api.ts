@@ -82,6 +82,7 @@ const AVAILABLE_COHORTS_CACHE_KEY = 'available-cohorts'
 const MEMBER_DETAIL_CACHE_PREFIX = 'member-detail:'
 const COMPETITION_DETAIL_CACHE_PREFIX = 'competition-detail:'
 const COHORT_OVERVIEW_CACHE_KEY = 'cohort-overview'
+const COHORT_TIMELINE_CACHE_KEY = 'cohort-timeline'
 const HOME_STATS_CACHE_KEY = 'home-stats'
 
 const MEMBERS_CACHE_TTL_MS = 60_000
@@ -90,6 +91,7 @@ const AVAILABLE_COHORTS_CACHE_TTL_MS = 5 * 60_000
 const MEMBER_DETAIL_CACHE_TTL_MS = 2 * 60_000
 const COMPETITION_DETAIL_CACHE_TTL_MS = 2 * 60_000
 const COHORT_OVERVIEW_CACHE_TTL_MS = 60_000
+const COHORT_TIMELINE_CACHE_TTL_MS = 60_000
 const HOME_STATS_CACHE_TTL_MS = 60_000
 
 const DEFAULT_MEMBERS_PAGE = 1
@@ -188,6 +190,7 @@ function invalidateMemberRelatedCache() {
 
 function invalidateCompetitionRelatedCache() {
   invalidateCacheKey(COHORT_OVERVIEW_CACHE_KEY)
+  invalidateCacheKey(COHORT_TIMELINE_CACHE_KEY)
   invalidateCacheByPrefix(MEMBER_DETAIL_CACHE_PREFIX)
   invalidateCacheByPrefix(COMPETITION_DETAIL_CACHE_PREFIX)
   invalidateCacheKey(HOME_STATS_CACHE_KEY)
@@ -483,6 +486,10 @@ export function peekCohortOverview() {
   return peekCachedValue<Competition[]>(COHORT_OVERVIEW_CACHE_KEY)
 }
 
+export function peekCompetitionTimeline() {
+  return peekCachedValue<Competition[]>(COHORT_TIMELINE_CACHE_KEY)
+}
+
 export function peekHomeStats() {
   return peekCachedValue<HomeStats>(HOME_STATS_CACHE_KEY)
 }
@@ -767,6 +774,29 @@ export async function fetchCompetitionDetail(
         standings: standingsOnly,
         media,
       }
+    },
+  })
+}
+
+export async function fetchCompetitionTimeline() {
+  return fetchWithCache({
+    key: COHORT_TIMELINE_CACHE_KEY,
+    ttlMs: COHORT_TIMELINE_CACHE_TTL_MS,
+    fetcher: async () => {
+      const client = getSupabaseClient()
+      const { data: rows, error } = await client
+        .from('competitions')
+        .select(competitionFields)
+        .order('happened_at', { ascending: false })
+        .order('season_year', { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      return ((rows as unknown as Record<string, unknown>[] | null) ?? [])
+        .map((row) => mapCompetition(row))
+        .sort(sortCompetitionDesc)
     },
   })
 }
