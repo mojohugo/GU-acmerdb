@@ -52,6 +52,6 @@ on conflict (user_id) do update set is_admin = excluded.is_admin;
 
 ## TODO
 
-- 管理后台: 批量导入 Excel 直传/失败回滚/覆盖更新、附件失败重试/压缩/OSS回收清理
+- 管理后台: 批量导入 Excel 直传/失败回滚/覆盖更新、分页改为服务端分页、批量删除事务回滚、附件失败重试/压缩/OSS回收清理
 - 检索: 更接近 OIerDb 的高级搜索与统计图
 - 展示: 学校/队伍排名页、选手跨赛季趋势图

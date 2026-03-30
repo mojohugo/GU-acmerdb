@@ -107,6 +107,17 @@ const initialCompetitionForm: CompetitionForm = {
   remark: '',
 }
 
+const ADMIN_PAGE_SIZE_OPTIONS = [10, 20, 50] as const
+
+function getPageCount(total: number, pageSize: number) {
+  return total > 0 ? Math.ceil(total / pageSize) : 1
+}
+
+function sliceByPage<T>(items: T[], page: number, pageSize: number) {
+  const start = (page - 1) * pageSize
+  return items.slice(start, start + pageSize)
+}
+
 function createDateStamp() {
   const now = new Date()
   const year = now.getFullYear()
@@ -234,6 +245,16 @@ export function AdminPage() {
   const [editCompetitionForm, setEditCompetitionForm] =
     useState<CompetitionForm>(initialCompetitionForm)
 
+  const [memberPage, setMemberPage] = useState(1)
+  const [memberPageSize, setMemberPageSize] = useState<number>(ADMIN_PAGE_SIZE_OPTIONS[1])
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
+
+  const [competitionPage, setCompetitionPage] = useState(1)
+  const [competitionPageSize, setCompetitionPageSize] = useState<number>(
+    ADMIN_PAGE_SIZE_OPTIONS[1],
+  )
+  const [selectedCompetitionKeys, setSelectedCompetitionKeys] = useState<string[]>([])
+
   const competitionGroups = useMemo(() => {
     const map = new Map<string, CompetitionGroup>()
 
@@ -284,6 +305,42 @@ export function AdminPage() {
       return b.seasonYear - a.seasonYear
     })
   }, [competitions])
+
+  const memberPageCount = useMemo(
+    () => getPageCount(members.length, memberPageSize),
+    [members.length, memberPageSize],
+  )
+
+  const pagedMembers = useMemo(
+    () => sliceByPage(members, memberPage, memberPageSize),
+    [members, memberPage, memberPageSize],
+  )
+
+  const competitionPageCount = useMemo(
+    () => getPageCount(competitionGroups.length, competitionPageSize),
+    [competitionGroups.length, competitionPageSize],
+  )
+
+  const pagedCompetitionGroups = useMemo(
+    () => sliceByPage(competitionGroups, competitionPage, competitionPageSize),
+    [competitionGroups, competitionPage, competitionPageSize],
+  )
+
+  const currentPageMemberIds = useMemo(
+    () => pagedMembers.map((item) => item.id),
+    [pagedMembers],
+  )
+  const currentPageCompetitionKeys = useMemo(
+    () => pagedCompetitionGroups.map((item) => item.key),
+    [pagedCompetitionGroups],
+  )
+
+  const allCurrentMembersSelected =
+    currentPageMemberIds.length > 0 &&
+    currentPageMemberIds.every((id) => selectedMemberIds.includes(id))
+  const allCurrentCompetitionsSelected =
+    currentPageCompetitionKeys.length > 0 &&
+    currentPageCompetitionKeys.every((key) => selectedCompetitionKeys.includes(key))
 
   function clearMsg() {
     setError(null)
@@ -341,6 +398,20 @@ export function AdminPage() {
     void boot()
   }, [])
 
+  useEffect(() => {
+    setSelectedMemberIds((previous) =>
+      previous.filter((id) => members.some((member) => member.id === id)),
+    )
+    setMemberPage((previous) => Math.min(Math.max(1, previous), memberPageCount))
+  }, [memberPageCount, members])
+
+  useEffect(() => {
+    setSelectedCompetitionKeys((previous) =>
+      previous.filter((key) => competitionGroups.some((group) => group.key === key)),
+    )
+    setCompetitionPage((previous) => Math.min(Math.max(1, previous), competitionPageCount))
+  }, [competitionGroups, competitionPageCount])
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     clearMsg()
@@ -371,6 +442,10 @@ export function AdminPage() {
       setCompetitions([])
       setEditingMemberId(null)
       setEditingCompetitionKey(null)
+      setSelectedMemberIds([])
+      setSelectedCompetitionKeys([])
+      setMemberPage(1)
+      setCompetitionPage(1)
       setMemberImportPreview(null)
       setCompetitionImportPreview(null)
       setSuccess('已退出登录')
@@ -750,6 +825,146 @@ export function AdminPage() {
       setSuccess('比赛删除成功')
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除比赛失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function toggleMemberSelection(memberId: string, checked: boolean) {
+    setSelectedMemberIds((previous) => {
+      if (checked) {
+        return previous.includes(memberId) ? previous : [...previous, memberId]
+      }
+      return previous.filter((id) => id !== memberId)
+    })
+  }
+
+  function toggleCurrentPageMembers(checked: boolean) {
+    setSelectedMemberIds((previous) => {
+      if (checked) {
+        const merged = new Set([...previous, ...currentPageMemberIds])
+        return [...merged]
+      }
+      return previous.filter((id) => !currentPageMemberIds.includes(id))
+    })
+  }
+
+  function toggleCompetitionSelection(groupKey: string, checked: boolean) {
+    setSelectedCompetitionKeys((previous) => {
+      if (checked) {
+        return previous.includes(groupKey) ? previous : [...previous, groupKey]
+      }
+      return previous.filter((key) => key !== groupKey)
+    })
+  }
+
+  function toggleCurrentPageCompetitions(checked: boolean) {
+    setSelectedCompetitionKeys((previous) => {
+      if (checked) {
+        const merged = new Set([...previous, ...currentPageCompetitionKeys])
+        return [...merged]
+      }
+      return previous.filter((key) => !currentPageCompetitionKeys.includes(key))
+    })
+  }
+
+  async function onBatchDeleteMembers() {
+    if (selectedMemberIds.length === 0) {
+      return
+    }
+
+    if (!window.confirm(`确定批量删除已选中的 ${selectedMemberIds.length} 名队员吗？`)) {
+      return
+    }
+
+    clearMsg()
+    setSubmitting(true)
+
+    let completedCount = 0
+    try {
+      for (const memberId of selectedMemberIds) {
+        try {
+          await deleteMember(memberId)
+          completedCount += 1
+          if (editingMemberId === memberId) {
+            setEditingMemberId(null)
+          }
+        } catch (e) {
+          const reason = e instanceof Error ? e.message : '删除失败'
+          throw new Error(
+            completedCount > 0
+              ? `已删除 ${completedCount} 名队员，后续删除失败：${reason}`
+              : `批量删除失败：${reason}`,
+          )
+        }
+      }
+
+      setSelectedMemberIds([])
+      await loadData()
+      setSuccess(`已批量删除 ${completedCount} 名队员`)
+    } catch (e) {
+      if (completedCount > 0) {
+        await loadData()
+      }
+      setError(e instanceof Error ? e.message : '批量删除队员失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function onBatchDeleteCompetitionGroups() {
+    if (selectedCompetitionKeys.length === 0) {
+      return
+    }
+
+    const selectedGroups = competitionGroups.filter((group) =>
+      selectedCompetitionKeys.includes(group.key),
+    )
+
+    if (selectedGroups.length === 0) {
+      setSelectedCompetitionKeys([])
+      return
+    }
+
+    const totalStandings = selectedGroups.reduce((sum, group) => sum + group.entries.length, 0)
+    if (
+      !window.confirm(
+        `确定批量删除 ${selectedGroups.length} 场比赛（共 ${totalStandings} 条战绩记录）吗？`,
+      )
+    ) {
+      return
+    }
+
+    clearMsg()
+    setSubmitting(true)
+
+    let completedCount = 0
+    try {
+      for (const group of selectedGroups) {
+        try {
+          await Promise.all(group.entries.map((entry) => deleteCompetition(entry.id)))
+          completedCount += 1
+          if (editingCompetitionKey === group.key) {
+            setEditingCompetitionKey(null)
+          }
+        } catch (e) {
+          const reason = e instanceof Error ? e.message : '删除失败'
+          throw new Error(
+            completedCount > 0
+              ? `已删除 ${completedCount} 场比赛，后续删除失败：${reason}`
+              : `批量删除比赛失败：${reason}`,
+          )
+        }
+      }
+
+      setSelectedCompetitionKeys([])
+      await loadData()
+      setSuccess(`已批量删除 ${completedCount} 场比赛`)
+    } catch (e) {
+      if (completedCount > 0) {
+        await loadData()
+      }
+      setError(e instanceof Error ? e.message : '批量删除比赛失败')
     } finally {
       setSubmitting(false)
     }
@@ -1144,11 +1359,52 @@ export function AdminPage() {
           <section className="panel">
             <div className="panel-header">
               <h3>队员列表 / 编辑</h3>
+              <p>
+                共 {members.length} 名队员，已选 {selectedMemberIds.length} 名；当前第 {memberPage} /{' '}
+                {memberPageCount} 页。
+              </p>
+            </div>
+            <div className="hero-actions">
+              <label>
+                每页数量
+                <select
+                  value={memberPageSize}
+                  onChange={(event) => {
+                    setMemberPageSize(Number(event.target.value))
+                    setMemberPage(1)
+                  }}
+                  disabled={submitting}
+                >
+                  {ADMIN_PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={`member-page-size-${size}`} value={size}>
+                      {size} 条/页
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={submitting || selectedMemberIds.length === 0}
+                onClick={() => void onBatchDeleteMembers()}
+              >
+                批量删除队员（{selectedMemberIds.length}）
+              </button>
             </div>
             <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
+                    <th>
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={allCurrentMembersSelected}
+                          onChange={(event) => toggleCurrentPageMembers(event.target.checked)}
+                        />
+                        本页全选
+                      </label>
+                    </th>
                     <th>姓名</th>
                     <th>届别</th>
                     <th>状态</th>
@@ -1156,8 +1412,18 @@ export function AdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {members.map((member) => (
+                  {pagedMembers.map((member) => (
                     <tr key={member.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedMemberIds.includes(member.id)}
+                          onChange={(event) =>
+                            toggleMemberSelection(member.id, event.target.checked)
+                          }
+                          disabled={submitting}
+                        />
+                      </td>
                       <td>{member.name}</td>
                       <td>{member.cohortYear} 级</td>
                       <td>{member.isActive ? '在队' : '退队/毕业'}</td>
@@ -1192,6 +1458,29 @@ export function AdminPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="pagination-row">
+              <button
+                className="btn"
+                type="button"
+                onClick={() => setMemberPage((previous) => Math.max(1, previous - 1))}
+                disabled={memberPage <= 1 || submitting}
+              >
+                上一页
+              </button>
+              <span className="status-hint">
+                第 {memberPage} / {memberPageCount} 页（本页 {pagedMembers.length} 条）
+              </span>
+              <button
+                className="btn"
+                type="button"
+                onClick={() =>
+                  setMemberPage((previous) => Math.min(memberPageCount, previous + 1))
+                }
+                disabled={memberPage >= memberPageCount || submitting}
+              >
+                下一页
+              </button>
             </div>
 
             {editingMemberId ? (
@@ -1259,10 +1548,53 @@ export function AdminPage() {
               <h3>比赛列表</h3>
               <p>可直接编辑/删除比赛基础信息；战绩请点“管理战绩”进入详情页维护。</p>
             </div>
+            <div className="hero-actions">
+              <label>
+                每页数量
+                <select
+                  value={competitionPageSize}
+                  onChange={(event) => {
+                    setCompetitionPageSize(Number(event.target.value))
+                    setCompetitionPage(1)
+                  }}
+                  disabled={submitting}
+                >
+                  {ADMIN_PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={`competition-page-size-${size}`} value={size}>
+                      {size} 条/页
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span className="status-hint">
+                共 {competitionGroups.length} 场比赛，已选 {selectedCompetitionKeys.length} 场；当前第{' '}
+                {competitionPage} / {competitionPageCount} 页。
+              </span>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={submitting || selectedCompetitionKeys.length === 0}
+                onClick={() => void onBatchDeleteCompetitionGroups()}
+              >
+                批量删除比赛（{selectedCompetitionKeys.length}）
+              </button>
+            </div>
             <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
+                    <th>
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={allCurrentCompetitionsSelected}
+                          onChange={(event) =>
+                            toggleCurrentPageCompetitions(event.target.checked)
+                          }
+                        />
+                        本页全选
+                      </label>
+                    </th>
                     <th>赛事</th>
                     <th>分类</th>
                     <th>日期</th>
@@ -1272,8 +1604,18 @@ export function AdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {competitionGroups.map((competition) => (
+                  {pagedCompetitionGroups.map((competition) => (
                     <tr key={competition.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedCompetitionKeys.includes(competition.key)}
+                          onChange={(event) =>
+                            toggleCompetitionSelection(competition.key, event.target.checked)
+                          }
+                          disabled={submitting}
+                        />
+                      </td>
                       <td>{competition.title}</td>
                       <td>
                         <ContestTypeTag category={competition.category} />
@@ -1319,6 +1661,29 @@ export function AdminPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="pagination-row">
+              <button
+                className="btn"
+                type="button"
+                onClick={() => setCompetitionPage((previous) => Math.max(1, previous - 1))}
+                disabled={competitionPage <= 1 || submitting}
+              >
+                上一页
+              </button>
+              <span className="status-hint">
+                第 {competitionPage} / {competitionPageCount} 页（本页 {pagedCompetitionGroups.length} 条）
+              </span>
+              <button
+                className="btn"
+                type="button"
+                onClick={() =>
+                  setCompetitionPage((previous) => Math.min(competitionPageCount, previous + 1))
+                }
+                disabled={competitionPage >= competitionPageCount || submitting}
+              >
+                下一页
+              </button>
             </div>
 
             {editingCompetitionKey ? (
@@ -1409,7 +1774,7 @@ export function AdminPage() {
             ) : null}
 
             <p className="todo-note">
-              TODO: 后台待补充批量录入模板（复制上一条/粘贴多行）、比赛主档案与战绩拆表、附件上传进度与 OSS 文件回收。
+              TODO: 后台待补充“批量录入模板（复制上一条/粘贴多行）+ 比赛主档案与战绩拆表 + 批量删除事务回滚 + 服务端分页/筛选”。
             </p>
           </section>
         </>
