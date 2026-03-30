@@ -125,12 +125,12 @@ export function HomePage() {
         <p className="hero-kicker">Guangzhou University</p>
         <h2>ACM 校队信息与成绩记录</h2>
         <p>
-          参考 OIerDb 的浏览体验，支持按成员与时间线快速查看比赛记录与成绩明细。
+          把队员履历、赛事记录和获奖信息放在同一个入口，查历史、看全貌都会更顺手。
         </p>
         <div className="hero-points">
-          <span>时间线回看</span>
-          <span>成员履历检索</span>
-          <span>比赛内维护战绩</span>
+          <span>赛事时间线回看</span>
+          <span>成员维度检索</span>
+          <span>管理员在线维护</span>
         </div>
         <div className="hero-actions">
           <Link className="btn btn-solid" to="/members">
@@ -165,6 +165,7 @@ export function HomePage() {
           <section className="panel">
             <div className="panel-header">
               <h3>最近赛事记录</h3>
+              <p>默认展示最新录入的赛事分组，可直接进入详情查看战绩与附件。</p>
             </div>
             <div className="filters-toolbar">
               <span className="status-hint">

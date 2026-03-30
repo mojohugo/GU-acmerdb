@@ -10,20 +10,17 @@ export function Layout({ children }: PropsWithChildren) {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <span className="topbar-glow topbar-glow-left" aria-hidden />
-        <span className="topbar-glow topbar-glow-right" aria-hidden />
-
         <div className="topbar-head">
           <div className="topbar-brand">
-            <p className="topbar-kicker">GU ACM Data</p>
+            <p className="topbar-kicker">Guangzhou University ACM Team</p>
             <h1>广州大学 ACM 校队队员库</h1>
-            <p className="topbar-subtitle">队员信息与比赛成绩记录</p>
+            <p className="topbar-subtitle">队员档案、赛事战绩与获奖记录统一维护</p>
           </div>
 
           <div className="topbar-status" aria-label="站点状态">
-            <span className="badge-chip badge-chip-live">稳定运行</span>
-            <span className="badge-chip">队员 / 赛事</span>
-            <span className="badge-chip badge-chip-anime">数据维护中</span>
+            <span className="badge-chip badge-chip-live">持续维护</span>
+            <span className="badge-chip">公开查询</span>
+            <span className="badge-chip badge-chip-anime">管理员可编辑</span>
           </div>
         </div>
 
@@ -34,7 +31,7 @@ export function Layout({ children }: PropsWithChildren) {
           </NavLink>
           <NavLink to="/members" className={navClassName}>
             <Users size={14} aria-hidden="true" className="nav-link-icon" />
-            队员
+            队员档案
           </NavLink>
           <NavLink to="/cohorts" className={navClassName}>
             <CalendarClock size={14} aria-hidden="true" className="nav-link-icon" />
@@ -42,7 +39,7 @@ export function Layout({ children }: PropsWithChildren) {
           </NavLink>
           <NavLink to="/awards" className={navClassName}>
             <BarChart3 size={14} aria-hidden="true" className="nav-link-icon" />
-            获奖查询
+            获奖统计
           </NavLink>
           <NavLink to="/admin" className={navClassName}>
             <ShieldCheck size={14} aria-hidden="true" className="nav-link-icon" />
@@ -58,7 +55,7 @@ export function Layout({ children }: PropsWithChildren) {
       <main className="main-panel">{children}</main>
 
       <footer className="footer">
-        <p>GU ACMerDB</p>
+        <p>GU ACMerDB · 广州大学 ACM 校队</p>
       </footer>
     </div>
   )
