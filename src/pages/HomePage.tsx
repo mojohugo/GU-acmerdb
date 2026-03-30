@@ -149,18 +149,10 @@ export function HomePage() {
             </div>
           </div>
           <div className="home-hero-side">
-            <p className="home-hero-side-title">常用入口</p>
-            <div className="hero-actions home-hero-actions">
-              <Link className="btn btn-solid" to="/members">
-                查看队员库
-              </Link>
-              <Link className="btn" to="/cohorts">
-                查看赛事时间线
-              </Link>
-              <Link className="btn" to="/awards">
-                获奖查询与统计
-              </Link>
-            </div>
+            <p className="home-hero-side-title">导航入口</p>
+            <p className="home-hero-side-note">
+              首页、队员档案、赛事时间线、获奖统计、管理均已放到顶部导航栏。
+            </p>
             <p className="home-hero-side-note">
               最近赛事日期：{latestRecordedAt ?? '暂无'}
             </p>

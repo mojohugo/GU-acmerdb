@@ -1,61 +1,55 @@
 import type { PropsWithChildren } from 'react'
-import { BarChart3, CalendarClock, House, Info, ShieldCheck, Users } from 'lucide-react'
+import { BarChart3, CalendarClock, House, ShieldCheck, Users } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 function navClassName({ isActive }: { isActive: boolean }) {
   return isActive ? 'nav-link nav-link-active' : 'nav-link'
 }
 
+type NavItem = {
+  to: string
+  label: string
+  Icon: LucideIcon
+  end?: boolean
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { to: '/', label: '首页', Icon: House, end: true },
+  { to: '/members', label: '队员档案', Icon: Users },
+  { to: '/cohorts', label: '赛事时间线', Icon: CalendarClock },
+  { to: '/awards', label: '获奖统计', Icon: BarChart3 },
+  { to: '/admin', label: '管理', Icon: ShieldCheck },
+]
+
 export function Layout({ children }: PropsWithChildren) {
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <div className="topbar-head">
-          <div className="topbar-brand">
-            <p className="topbar-kicker">Guangzhou University ACM Team</p>
-            <h1>广州大学 ACM 校队队员库</h1>
-            <p className="topbar-subtitle">队员档案、赛事战绩与获奖记录统一维护</p>
+      <header className="topbar topbar-navbar">
+        <div className="topbar-head topbar-head-navbar">
+          <div className="topbar-brand topbar-brand-navbar">
+            <p className="topbar-kicker">GU ACM TEAM</p>
+            <h1>GU ACMerDB</h1>
+            <p className="topbar-subtitle">队员档案与赛事数据管理平台</p>
           </div>
 
-          <div className="topbar-status" aria-label="站点状态">
-            <span className="badge-chip badge-chip-live">持续维护</span>
-            <span className="badge-chip">公开查询</span>
-            <span className="badge-chip badge-chip-anime">管理员可编辑</span>
-          </div>
+          <nav className="topbar-nav topbar-nav-navbar">
+            {NAV_ITEMS.map((item) => (
+              <NavLink key={item.to} to={item.to} className={navClassName} end={item.end}>
+                <item.Icon size={14} aria-hidden="true" className="nav-link-icon" />
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
         </div>
-
-        <nav className="topbar-nav">
-          <NavLink to="/" className={navClassName}>
-            <House size={14} aria-hidden="true" className="nav-link-icon" />
-            首页
-          </NavLink>
-          <NavLink to="/members" className={navClassName}>
-            <Users size={14} aria-hidden="true" className="nav-link-icon" />
-            队员档案
-          </NavLink>
-          <NavLink to="/cohorts" className={navClassName}>
-            <CalendarClock size={14} aria-hidden="true" className="nav-link-icon" />
-            赛事时间线
-          </NavLink>
-          <NavLink to="/awards" className={navClassName}>
-            <BarChart3 size={14} aria-hidden="true" className="nav-link-icon" />
-            获奖统计
-          </NavLink>
-          <NavLink to="/admin" className={navClassName}>
-            <ShieldCheck size={14} aria-hidden="true" className="nav-link-icon" />
-            管理
-          </NavLink>
-          <NavLink to="/about" className={navClassName}>
-            <Info size={14} aria-hidden="true" className="nav-link-icon" />
-            关于
-          </NavLink>
-        </nav>
       </header>
 
       <main className="main-panel">{children}</main>
 
       <footer className="footer">
-        <p>GU ACMerDB · 广州大学 ACM 校队</p>
+        <p>
+          GU ACMerDB · 广州大学 ACM 校队 · <NavLink to="/about">关于</NavLink>
+        </p>
       </footer>
     </div>
   )
