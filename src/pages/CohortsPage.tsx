@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AnimatedSelect } from '../components/AnimatedSelect'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
@@ -243,19 +244,17 @@ export function CohortsPage() {
         <div className="filters">
           <label>
             分类
-            <select
+            <AnimatedSelect
               value={categoryFilter}
-              onChange={(event) =>
-                setCategoryFilter(event.target.value as CategoryFilter)
-              }
-            >
-              <option value="all">全部分类</option>
-              {CONTEST_TYPE_ORDER.map((category) => (
-                <option key={category} value={category}>
-                  {CONTEST_TYPE_LABELS[category]}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setCategoryFilter(value as CategoryFilter)}
+              options={[
+                { value: 'all', label: '全部分类' },
+                ...CONTEST_TYPE_ORDER.map((category) => ({
+                  value: category,
+                  label: CONTEST_TYPE_LABELS[category],
+                })),
+              ]}
+            />
           </label>
 
           <label>
@@ -293,17 +292,15 @@ export function CohortsPage() {
           ) : null}
           <label>
             每页数量
-            <select
+            <AnimatedSelect
               value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
+              onChange={(value) => setPageSize(Number(value))}
               disabled={loading || Boolean(error)}
-            >
-              {PAGE_SIZE_OPTIONS.map((option) => (
-                <option key={`cohorts-page-size-${option}`} value={option}>
-                  {option} 条/页
-                </option>
-              ))}
-            </select>
+              options={PAGE_SIZE_OPTIONS.map((option) => ({
+                value: option,
+                label: `${option} 条/页`,
+              }))}
+            />
           </label>
         </div>
 

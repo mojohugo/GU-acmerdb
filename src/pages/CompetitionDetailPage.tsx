@@ -1,6 +1,7 @@
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { AnimatedSelect } from '../components/AnimatedSelect'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { AwardBadge, RankBadge } from '../components/ResultBadge'
@@ -1056,17 +1057,15 @@ export function CompetitionDetailPage() {
               </span>
               <label>
                 每页数量
-                <select
+                <AnimatedSelect
                   value={eventPhotoPageSize}
-                  onChange={(event) => setEventPhotoPageSize(Number(event.target.value))}
+                  onChange={(value) => setEventPhotoPageSize(Number(value))}
                   disabled={actionLoading}
-                >
-                  {PHOTO_PAGE_SIZE_OPTIONS.map((option) => (
-                    <option key={`competition-photo-page-size-${option}`} value={option}>
-                      {option} 张/页
-                    </option>
-                  ))}
-                </select>
+                  options={PHOTO_PAGE_SIZE_OPTIONS.map((option) => ({
+                    value: option,
+                    label: `${option} 张/页`,
+                  }))}
+                />
               </label>
             </div>
 
@@ -1205,17 +1204,15 @@ export function CompetitionDetailPage() {
               </span>
               <label>
                 每页数量
-                <select
+                <AnimatedSelect
                   value={standingPageSize}
-                  onChange={(event) => setStandingPageSize(Number(event.target.value))}
+                  onChange={(value) => setStandingPageSize(Number(value))}
                   disabled={actionLoading}
-                >
-                  {STANDING_PAGE_SIZE_OPTIONS.map((option) => (
-                    <option key={`competition-standing-page-size-${option}`} value={option}>
-                      {option} 条/页
-                    </option>
-                  ))}
-                </select>
+                  options={STANDING_PAGE_SIZE_OPTIONS.map((option) => ({
+                    value: option,
+                    label: `${option} 条/页`,
+                  }))}
+                />
               </label>
             </div>
 
@@ -1473,16 +1470,14 @@ export function CompetitionDetailPage() {
                   </label>
                   <label>
                     每页数量
-                    <select
+                    <AnimatedSelect
                       value={memberPickerPageSize}
-                      onChange={(event) => setMemberPickerPageSize(Number(event.target.value))}
-                    >
-                      {MEMBER_PICKER_PAGE_SIZE_OPTIONS.map((option) => (
-                        <option key={`member-picker-size-${option}`} value={option}>
-                          {option} 人/页
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(value) => setMemberPickerPageSize(Number(value))}
+                      options={MEMBER_PICKER_PAGE_SIZE_OPTIONS.map((option) => ({
+                        value: option,
+                        label: `${option} 人/页`,
+                      }))}
+                    />
                   </label>
                 </div>
                 <div className="filters-toolbar">

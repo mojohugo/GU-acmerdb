@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AnimatedSelect } from '../components/AnimatedSelect'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { fetchAwardsOverview, peekAwardsOverview } from '../lib/api'
@@ -433,32 +434,33 @@ export function AwardsPage() {
 
           <label>
             赛事分类
-            <select
+            <AnimatedSelect
               value={categoryFilter}
-              onChange={(event) => setCategoryFilter(event.target.value as CategoryFilter)}
-            >
-              <option value="all">全部分类</option>
-              {CONTEST_TYPE_ORDER.map((category) => (
-                <option key={category} value={category}>
-                  {CONTEST_TYPE_LABELS[category]}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setCategoryFilter(value as CategoryFilter)}
+              options={[
+                { value: 'all', label: '全部分类' },
+                ...CONTEST_TYPE_ORDER.map((category) => ({
+                  value: category,
+                  label: CONTEST_TYPE_LABELS[category],
+                })),
+              ]}
+            />
           </label>
 
           <label>
             奖项等级
-            <select
+            <AnimatedSelect
               value={tierFilter}
-              onChange={(event) => setTierFilter(event.target.value as AwardTierFilter)}
-            >
-              <option value="all">全部等级</option>
-              <option value="gold">金奖/冠军</option>
-              <option value="silver">银奖/亚军</option>
-              <option value="bronze">铜奖/季军</option>
-              <option value="excellent">优秀/入围</option>
-              <option value="other">其他</option>
-            </select>
+              onChange={(value) => setTierFilter(value as AwardTierFilter)}
+              options={[
+                { value: 'all', label: '全部等级' },
+                { value: 'gold', label: '金奖/冠军' },
+                { value: 'silver', label: '银奖/亚军' },
+                { value: 'bronze', label: '铜奖/季军' },
+                { value: 'excellent', label: '优秀/入围' },
+                { value: 'other', label: '其他' },
+              ]}
+            />
           </label>
 
           <label>
@@ -516,17 +518,15 @@ export function AwardsPage() {
 
           <label className="awards-page-size-label">
             每页数量
-            <select
+            <AnimatedSelect
               value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
+              onChange={(value) => setPageSize(Number(value))}
               disabled={loading || Boolean(error)}
-            >
-              {PAGE_SIZE_OPTIONS.map((option) => (
-                <option key={`awards-page-size-${option}`} value={option}>
-                  {option} 条/页
-                </option>
-              ))}
-            </select>
+              options={PAGE_SIZE_OPTIONS.map((option) => ({
+                value: option,
+                label: `${option} 条/页`,
+              }))}
+            />
           </label>
         </div>
       </section>

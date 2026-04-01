@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { AnimatedSelect } from '../components/AnimatedSelect'
 import { EmptyState } from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import {
@@ -414,82 +415,82 @@ export function MembersPage() {
 
           <label>
             届别
-            <select
+            <AnimatedSelect
               value={cohortYear}
-              onChange={(event) => {
-                const value = event.target.value
-                setCohortYear(value ? Number(value) : '')
+              onChange={(value) => {
+                setCohortYear(value === '' ? '' : Number(value))
                 setPage(DEFAULT_PAGE)
               }}
-            >
-              <option value="">全部届别</option>
-              {cohorts.map((year) => (
-                <option key={year} value={year}>
-                  {year} 级
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: '全部届别' },
+                ...cohorts.map((year) => ({
+                  value: year,
+                  label: `${year} 级`,
+                })),
+              ]}
+            />
           </label>
 
           <label>
             状态
-            <select
+            <AnimatedSelect
               value={statusFilter}
-              onChange={(event) => {
-                setStatusFilter(event.target.value as StatusFilter)
+              onChange={(value) => {
+                setStatusFilter(value as StatusFilter)
                 setPage(DEFAULT_PAGE)
               }}
-            >
-              <option value="all">全部状态</option>
-              <option value="active">仅在队</option>
-              <option value="inactive">仅已毕业/离队</option>
-            </select>
+              options={[
+                { value: 'all', label: '全部状态' },
+                { value: 'active', label: '仅在队' },
+                { value: 'inactive', label: '仅已毕业/离队' },
+              ]}
+            />
           </label>
 
           <label>
             排序字段
-            <select
+            <AnimatedSelect
               value={sortBy}
-              onChange={(event) => {
-                setSortBy(event.target.value as MemberSortField)
+              onChange={(value) => {
+                setSortBy(value as MemberSortField)
                 setPage(DEFAULT_PAGE)
               }}
-            >
-              <option value="cohort_year">届别</option>
-              <option value="name">姓名</option>
-              <option value="created_at">录入时间</option>
-            </select>
+              options={[
+                { value: 'cohort_year', label: '届别' },
+                { value: 'name', label: '姓名' },
+                { value: 'created_at', label: '录入时间' },
+              ]}
+            />
           </label>
 
           <label>
             排序方向
-            <select
+            <AnimatedSelect
               value={sortDirection}
-              onChange={(event) => {
-                setSortDirection(event.target.value as SortDirection)
+              onChange={(value) => {
+                setSortDirection(value as SortDirection)
                 setPage(DEFAULT_PAGE)
               }}
-            >
-              <option value="desc">降序</option>
-              <option value="asc">升序</option>
-            </select>
+              options={[
+                { value: 'desc', label: '降序' },
+                { value: 'asc', label: '升序' },
+              ]}
+            />
           </label>
 
           <label>
             每页数量
-            <select
+            <AnimatedSelect
               value={pageSize}
-              onChange={(event) => {
-                setPageSize(Number(event.target.value))
+              onChange={(value) => {
+                setPageSize(Number(value))
                 setPage(DEFAULT_PAGE)
               }}
-            >
-              {PAGE_SIZE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option} 条/页
-                </option>
-              ))}
-            </select>
+              options={PAGE_SIZE_OPTIONS.map((option) => ({
+                value: option,
+                label: `${option} 条/页`,
+              }))}
+            />
           </label>
         </div>
 

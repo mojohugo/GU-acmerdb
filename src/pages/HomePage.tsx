@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, Trophy, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { AnimatedSelect } from '../components/AnimatedSelect'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { fetchHomeStats, peekHomeStats } from '../lib/api'
@@ -183,16 +184,14 @@ export function HomePage() {
               </span>
               <label>
                 每页数量
-                <select
+                <AnimatedSelect
                   value={latestPageSize}
-                  onChange={(event) => setLatestPageSize(Number(event.target.value))}
-                >
-                  {LATEST_PAGE_SIZE_OPTIONS.map((option) => (
-                    <option key={`home-latest-page-size-${option}`} value={option}>
-                      {option} 条/页
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setLatestPageSize(Number(value))}
+                  options={LATEST_PAGE_SIZE_OPTIONS.map((option) => ({
+                    value: option,
+                    label: `${option} 条/页`,
+                  }))}
+                />
               </label>
             </div>
             {latestCompetitionPreviews.length === 0 ? (

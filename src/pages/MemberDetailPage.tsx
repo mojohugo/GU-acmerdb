@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { AnimatedSelect } from '../components/AnimatedSelect'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { AwardBadge, RankBadge } from '../components/ResultBadge'
@@ -213,16 +214,14 @@ export function MemberDetailPage() {
               </span>
               <label>
                 每页数量
-                <select
+                <AnimatedSelect
                   value={pageSize}
-                  onChange={(event) => setPageSize(Number(event.target.value))}
-                >
-                  {PAGE_SIZE_OPTIONS.map((option) => (
-                    <option key={`member-detail-page-size-${option}`} value={option}>
-                      {option} 条/页
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setPageSize(Number(value))}
+                  options={PAGE_SIZE_OPTIONS.map((option) => ({
+                    value: option,
+                    label: `${option} 条/页`,
+                  }))}
+                />
               </label>
             </div>
 
