@@ -320,6 +320,14 @@ function mapCompetitionWithEmbeddedParticipants(
   }
 }
 
+function toEmbeddedRecords(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) {
+    return value.filter(isRecord)
+  }
+
+  return isRecord(value) ? [value] : []
+}
+
 function asMediaType(value: unknown): CompetitionMediaType {
   return value === 'certificate' || value === 'event_photo' ? value : 'event_photo'
 }
@@ -713,34 +721,56 @@ export async function fetchMemberDetail(memberId: string): Promise<MemberDetail>
         throw memberError
       }
 
-      const { data: links, error: linkError } = await client
+      const { data: embeddedLinks, error: embeddedLinkError } = await client
         .from('competition_members')
-        .select('competition_id')
+        .select(`competition_id,competitions(${competitionFields})`)
         .eq('member_id', memberId)
-
-      if (linkError) {
-        throw linkError
-      }
-
-      const competitionIds = (links ?? [])
-        .map((row) => asString((row as Record<string, unknown>).competition_id))
-        .filter((id): id is string => Boolean(id))
 
       let competitions: Competition[] = []
 
-      if (competitionIds.length > 0) {
-        const { data: competitionRows, error: competitionError } = await client
-          .from('competitions')
-          .select(competitionFields)
-          .in('id', competitionIds)
+      if (!embeddedLinkError) {
+        const uniqueCompetitions = new Map<string, Competition>()
+        const rows = (embeddedLinks as unknown as Record<string, unknown>[] | null) ?? []
 
-        if (competitionError) {
-          throw competitionError
+        for (const row of rows) {
+          const embeddedCompetitionRows = toEmbeddedRecords(row.competitions)
+          for (const embeddedCompetitionRow of embeddedCompetitionRows) {
+            const mappedCompetition = mapCompetition(embeddedCompetitionRow)
+            if (mappedCompetition.id && !uniqueCompetitions.has(mappedCompetition.id)) {
+              uniqueCompetitions.set(mappedCompetition.id, mappedCompetition)
+            }
+          }
         }
 
-        competitions = (competitionRows ?? [])
-          .map((row) => mapCompetition(row as unknown as Record<string, unknown>))
-          .sort(sortCompetitionDesc)
+        competitions = [...uniqueCompetitions.values()].sort(sortCompetitionDesc)
+      } else {
+        const { data: links, error: linkError } = await client
+          .from('competition_members')
+          .select('competition_id')
+          .eq('member_id', memberId)
+
+        if (linkError) {
+          throw linkError
+        }
+
+        const competitionIds = (links ?? [])
+          .map((row) => asString((row as Record<string, unknown>).competition_id))
+          .filter((id): id is string => Boolean(id))
+
+        if (competitionIds.length > 0) {
+          const { data: competitionRows, error: competitionError } = await client
+            .from('competitions')
+            .select(competitionFields)
+            .in('id', competitionIds)
+
+          if (competitionError) {
+            throw competitionError
+          }
+
+          competitions = (competitionRows ?? [])
+            .map((row) => mapCompetition(row as unknown as Record<string, unknown>))
+            .sort(sortCompetitionDesc)
+        }
       }
 
       return {
@@ -773,38 +803,58 @@ export async function fetchCompetitionDetail(
       const focusRaw = focusRow as unknown as Record<string, unknown>
       const focus = mapCompetition(focusRaw)
 
-      const relatedQuery = client
+      let standings: Competition[] = []
+
+      const { data: relatedEmbeddedRows, error: relatedEmbeddedError } = await client
         .from('competitions')
-        .select(competitionFields)
+        .select(competitionFieldsWithParticipants)
         .eq('title', focus.title)
         .eq('category', focus.category)
         .eq('season_year', focus.seasonYear)
 
-      const { data: relatedRows, error: relatedError } = await relatedQuery
+      if (!relatedEmbeddedError) {
+        const mappedWithParticipants = (
+          (relatedEmbeddedRows as unknown as Record<string, unknown>[] | null) ??
+          []
+        ).map((row) => mapCompetitionWithEmbeddedParticipants(row))
 
-      if (relatedError) {
-        throw relatedError
+        standings = (
+          mappedWithParticipants.length > 0
+            ? mappedWithParticipants
+            : [focus]
+        ).sort(sortCompetitionStanding)
+      } else {
+        const { data: relatedRows, error: relatedError } = await client
+          .from('competitions')
+          .select(competitionFields)
+          .eq('title', focus.title)
+          .eq('category', focus.category)
+          .eq('season_year', focus.seasonYear)
+
+        if (relatedError) {
+          throw relatedError
+        }
+
+        const standingsRows = (
+          (relatedRows as unknown as Record<string, unknown>[] | null) ?? []
+        )
+        const rowsWithFallback =
+          standingsRows.length > 0
+            ? standingsRows
+            : [focusRaw]
+
+        standings = (await enrichCompetitionsWithParticipants(
+          client,
+          rowsWithFallback,
+        )).sort(sortCompetitionStanding)
       }
-
-      const standingsRows = (
-        (relatedRows as unknown as Record<string, unknown>[] | null) ?? []
-      )
-      const rowsWithFallback =
-        standingsRows.length > 0
-          ? standingsRows
-          : [focusRaw]
-
-      const standings = (await enrichCompetitionsWithParticipants(
-        client,
-        rowsWithFallback,
-      )).sort(sortCompetitionStanding)
 
       const standingsOnly = standings.filter((item) => hasStandingContent(item))
 
       const relatedCompetitionIds = [
         ...new Set(
-          rowsWithFallback
-            .map((row) => asString(row.id))
+          standings
+            .map((item) => item.id)
             .filter((id): id is string => Boolean(id)),
         ),
       ]

@@ -17,6 +17,7 @@ import {
   updateCompetition,
   uploadCompetitionMedia,
 } from '../lib/api'
+import { preloadMemberDetail } from '../lib/routePreload'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type {
   Competition,
@@ -1251,7 +1252,13 @@ export function CompetitionDetailPage() {
                               entry.participants.map((member, participantIndex) => (
                                 <span key={member.id}>
                                   {participantIndex > 0 ? '、' : ''}
-                                  <Link className="inline-link" to={`/member/${member.id}`}>
+                                  <Link
+                                    className="inline-link"
+                                    to={`/member/${member.id}`}
+                                    onMouseEnter={() => preloadMemberDetail(member.id)}
+                                    onFocus={() => preloadMemberDetail(member.id)}
+                                    onTouchStart={() => preloadMemberDetail(member.id)}
+                                  >
                                     {member.name}
                                   </Link>
                                 </span>

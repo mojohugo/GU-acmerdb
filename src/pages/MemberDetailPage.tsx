@@ -4,6 +4,7 @@ import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { AwardBadge, RankBadge } from '../components/ResultBadge'
 import { fetchMemberDetail, peekMemberDetail } from '../lib/api'
+import { preloadCompetitionDetail } from '../lib/routePreload'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { MemberDetail } from '../types'
 
@@ -115,6 +116,36 @@ export function MemberDetailPage() {
   }, [detail])
 
   useEffect(() => {
+    if (loading || error || pagedCompetitions.length === 0) {
+      return
+    }
+
+    let timer: number | null = null
+    let idleHandle: number | null = null
+
+    const runPrefetch = () => {
+      pagedCompetitions
+        .slice(0, 6)
+        .forEach((competition) => preloadCompetitionDetail(competition.id))
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idleHandle = window.requestIdleCallback(runPrefetch, { timeout: 1000 })
+    } else {
+      timer = window.setTimeout(runPrefetch, 180)
+    }
+
+    return () => {
+      if (timer !== null) {
+        window.clearTimeout(timer)
+      }
+      if (idleHandle !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle)
+      }
+    }
+  }, [error, loading, pagedCompetitions])
+
+  useEffect(() => {
     setPage(1)
   }, [memberId, pageSize])
 
@@ -217,7 +248,13 @@ export function MemberDetailPage() {
                       <tr key={competition.id}>
                         <td>{competition.happenedAt ?? '-'}</td>
                         <td>
-                          <Link className="inline-link" to={`/competition/${competition.id}`}>
+                          <Link
+                            className="inline-link"
+                            to={`/competition/${competition.id}`}
+                            onMouseEnter={() => preloadCompetitionDetail(competition.id)}
+                            onFocus={() => preloadCompetitionDetail(competition.id)}
+                            onTouchStart={() => preloadCompetitionDetail(competition.id)}
+                          >
                             {competition.title}
                           </Link>
                         </td>

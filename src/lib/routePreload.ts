@@ -57,6 +57,11 @@ function normalizePath(path: string) {
   return pathname.startsWith('/') ? pathname : `/${pathname}`
 }
 
+function getPathParam(path: string) {
+  const segments = path.split('/').filter(Boolean)
+  return segments.length >= 2 ? segments[1] : ''
+}
+
 function runPrefetchTask(key: string, task: () => Promise<unknown>) {
   if (!shouldPrefetch() || preloadedTasks.has(key)) {
     return
@@ -173,6 +178,33 @@ function prefetchAboutRoute() {
   })
 }
 
+export function preloadMemberDetail(memberId: string) {
+  const normalizedId = memberId.trim()
+  if (!normalizedId) {
+    return
+  }
+
+  runPrefetchTask(`route:member-detail:${normalizedId}`, async () => {
+    const apiPromise = import('./api')
+    await Promise.allSettled([loadMemberDetailPage(), apiPromise.then((api) => api.fetchMemberDetail(normalizedId))])
+  })
+}
+
+export function preloadCompetitionDetail(competitionId: string) {
+  const normalizedId = competitionId.trim()
+  if (!normalizedId) {
+    return
+  }
+
+  runPrefetchTask(`route:competition-detail:${normalizedId}`, async () => {
+    const apiPromise = import('./api')
+    await Promise.allSettled([
+      loadCompetitionDetailPage(),
+      apiPromise.then((api) => api.fetchCompetitionDetail(normalizedId)),
+    ])
+  })
+}
+
 export function preloadRouteForNavigation(path: string) {
   const normalized = normalizePath(path)
 
@@ -187,9 +219,7 @@ export function preloadRouteForNavigation(path: string) {
   }
 
   if (normalized.startsWith('/member/')) {
-    runPrefetchTask('route:member-detail', async () => {
-      await loadMemberDetailPage()
-    })
+    preloadMemberDetail(getPathParam(normalized))
     return
   }
 
@@ -204,9 +234,7 @@ export function preloadRouteForNavigation(path: string) {
   }
 
   if (normalized.startsWith('/competition/')) {
-    runPrefetchTask('route:competition-detail', async () => {
-      await loadCompetitionDetailPage()
-    })
+    preloadCompetitionDetail(getPathParam(normalized))
     return
   }
 

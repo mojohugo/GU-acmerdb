@@ -5,6 +5,7 @@ import { EmptyState } from '../components/EmptyState'
 import { fetchAwardsOverview, peekAwardsOverview } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
 import { downloadCsv } from '../lib/csv'
+import { preloadCompetitionDetail, preloadMemberDetail } from '../lib/routePreload'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { Competition, ContestCategory } from '../types'
 
@@ -377,6 +378,39 @@ export function AwardsPage() {
   const categoryMax = summary.categoryCounts[0]?.count ?? 0
   const memberTopMax = summary.memberTop[0]?.count ?? 0
 
+  useEffect(() => {
+    if (loading || error || (pagedRecords.length === 0 && summary.memberTop.length === 0)) {
+      return
+    }
+
+    let timer: number | null = null
+    let idleHandle: number | null = null
+
+    const runPrefetch = () => {
+      pagedRecords
+        .slice(0, 6)
+        .forEach((record) => preloadCompetitionDetail(record.id))
+      summary.memberTop
+        .slice(0, 4)
+        .forEach((member) => preloadMemberDetail(member.memberId))
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idleHandle = window.requestIdleCallback(runPrefetch, { timeout: 1000 })
+    } else {
+      timer = window.setTimeout(runPrefetch, 180)
+    }
+
+    return () => {
+      if (timer !== null) {
+        window.clearTimeout(timer)
+      }
+      if (idleHandle !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle)
+      }
+    }
+  }, [error, loading, pagedRecords, summary.memberTop])
+
   return (
     <div className="stack awards-page">
       <section className="panel awards-filter-panel">
@@ -578,7 +612,13 @@ export function AwardsPage() {
                     {summary.memberTop.map((item) => (
                       <li key={item.memberId} className="awards-rank-item">
                         <div className="awards-rank-main">
-                          <Link className="inline-link awards-member-link" to={`/member/${item.memberId}`}>
+                          <Link
+                            className="inline-link awards-member-link"
+                            to={`/member/${item.memberId}`}
+                            onMouseEnter={() => preloadMemberDetail(item.memberId)}
+                            onFocus={() => preloadMemberDetail(item.memberId)}
+                            onTouchStart={() => preloadMemberDetail(item.memberId)}
+                          >
                             {item.memberName}
                           </Link>
                           <span className="awards-rank-track">
@@ -622,7 +662,13 @@ export function AwardsPage() {
                       <tr key={record.id}>
                         <td>{record.happenedAt ?? '-'}</td>
                         <td>
-                          <Link className="inline-link" to={`/competition/${record.id}`}>
+                          <Link
+                            className="inline-link"
+                            to={`/competition/${record.id}`}
+                            onMouseEnter={() => preloadCompetitionDetail(record.id)}
+                            onFocus={() => preloadCompetitionDetail(record.id)}
+                            onTouchStart={() => preloadCompetitionDetail(record.id)}
+                          >
                             {record.title}
                           </Link>
                         </td>
@@ -640,7 +686,13 @@ export function AwardsPage() {
                               {record.memberIds.map((memberId, index) => (
                                 <span key={`${record.id}-${memberId}`}>
                                   {index > 0 ? '、' : ''}
-                                  <Link className="inline-link" to={`/member/${memberId}`}>
+                                  <Link
+                                    className="inline-link"
+                                    to={`/member/${memberId}`}
+                                    onMouseEnter={() => preloadMemberDetail(memberId)}
+                                    onFocus={() => preloadMemberDetail(memberId)}
+                                    onTouchStart={() => preloadMemberDetail(memberId)}
+                                  >
                                     {record.memberNames[index] ?? '未知成员'}
                                   </Link>
                                 </span>

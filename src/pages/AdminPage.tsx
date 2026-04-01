@@ -17,6 +17,7 @@ import {
   updateCompetition,
   updateMember,
 } from '../lib/api'
+import { preloadCompetitionDetail } from '../lib/routePreload'
 import {
   checkCompetitionImportRows,
   checkMemberImportRows,
@@ -1628,6 +1629,9 @@ export function AdminPage() {
                           <Link
                             to={`/competition/${competition.id}`}
                             className="btn btn-small"
+                            onMouseEnter={() => preloadCompetitionDetail(competition.id)}
+                            onFocus={() => preloadCompetitionDetail(competition.id)}
+                            onTouchStart={() => preloadCompetitionDetail(competition.id)}
                           >
                             管理战绩
                           </Link>

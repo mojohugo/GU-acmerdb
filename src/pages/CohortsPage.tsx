@@ -6,6 +6,7 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { fetchCompetitionTimeline, peekCompetitionTimeline } from '../lib/api'
 import { CONTEST_TYPE_LABELS, CONTEST_TYPE_ORDER } from '../lib/constants'
 import { downloadCsv } from '../lib/csv'
+import { preloadCompetitionDetail } from '../lib/routePreload'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { Competition, ContestCategory } from '../types'
 
@@ -201,6 +202,36 @@ export function CohortsPage() {
 
   const hasFilters = categoryFilter !== 'all' || keyword.trim().length > 0
 
+  useEffect(() => {
+    if (loading || error || pagedCompetitions.length === 0) {
+      return
+    }
+
+    let timer: number | null = null
+    let idleHandle: number | null = null
+
+    const runPrefetch = () => {
+      pagedCompetitions
+        .slice(0, 6)
+        .forEach((competition) => preloadCompetitionDetail(competition.id))
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idleHandle = window.requestIdleCallback(runPrefetch, { timeout: 1000 })
+    } else {
+      timer = window.setTimeout(runPrefetch, 180)
+    }
+
+    return () => {
+      if (timer !== null) {
+        window.clearTimeout(timer)
+      }
+      if (idleHandle !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle)
+      }
+    }
+  }, [error, loading, pagedCompetitions])
+
   return (
     <div className="stack">
       <section className="panel">
@@ -287,7 +318,13 @@ export function CohortsPage() {
               {pagedCompetitions.map((competition) => (
                 <article key={competition.id} className="timeline-item">
                   <div className="timeline-head">
-                    <Link className="inline-link" to={`/competition/${competition.id}`}>
+                    <Link
+                      className="inline-link"
+                      to={`/competition/${competition.id}`}
+                      onMouseEnter={() => preloadCompetitionDetail(competition.id)}
+                      onFocus={() => preloadCompetitionDetail(competition.id)}
+                      onTouchStart={() => preloadCompetitionDetail(competition.id)}
+                    >
                       <strong>{competition.title}</strong>
                     </Link>
                     <ContestTypeTag category={competition.category} />

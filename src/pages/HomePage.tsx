@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
 import { fetchHomeStats, peekHomeStats } from '../lib/api'
+import { preloadCompetitionDetail } from '../lib/routePreload'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { HomeStats } from '../types'
 
@@ -111,6 +112,36 @@ export function HomePage() {
   }, [latestCompetitionPreviews, latestPage, latestPageSize])
 
   useEffect(() => {
+    if (loading || error || latestCompetitionPreviews.length === 0) {
+      return
+    }
+
+    let timer: number | null = null
+    let idleHandle: number | null = null
+
+    const runPrefetch = () => {
+      latestCompetitionPreviews
+        .slice(0, 6)
+        .forEach((competition) => preloadCompetitionDetail(competition.id))
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idleHandle = window.requestIdleCallback(runPrefetch, { timeout: 1000 })
+    } else {
+      timer = window.setTimeout(runPrefetch, 180)
+    }
+
+    return () => {
+      if (timer !== null) {
+        window.clearTimeout(timer)
+      }
+      if (idleHandle !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle)
+      }
+    }
+  }, [error, latestCompetitionPreviews, loading])
+
+  useEffect(() => {
     setLatestPage(1)
   }, [latestPageSize])
 
@@ -182,7 +213,13 @@ export function HomePage() {
                       <tr key={competition.id}>
                         <td>{competition.happenedAt ?? '-'}</td>
                         <td>
-                          <Link className="inline-link" to={`/competition/${competition.id}`}>
+                          <Link
+                            className="inline-link"
+                            to={`/competition/${competition.id}`}
+                            onMouseEnter={() => preloadCompetitionDetail(competition.id)}
+                            onFocus={() => preloadCompetitionDetail(competition.id)}
+                            onTouchStart={() => preloadCompetitionDetail(competition.id)}
+                          >
                             {competition.title}
                           </Link>
                         </td>
@@ -190,7 +227,13 @@ export function HomePage() {
                           <ContestTypeTag category={competition.category} />
                         </td>
                         <td>
-                          <Link className="inline-link" to={`/competition/${competition.id}`}>
+                          <Link
+                            className="inline-link"
+                            to={`/competition/${competition.id}`}
+                            onMouseEnter={() => preloadCompetitionDetail(competition.id)}
+                            onFocus={() => preloadCompetitionDetail(competition.id)}
+                            onTouchStart={() => preloadCompetitionDetail(competition.id)}
+                          >
                             查看比赛
                           </Link>
                         </td>

@@ -12,6 +12,7 @@ import {
   type SortDirection,
 } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
+import { preloadMemberDetail } from '../lib/routePreload'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { Member } from '../types'
 
@@ -313,6 +314,34 @@ export function MembersPage() {
   const hasActiveFilters =
     query.trim().length > 0 || cohortYear !== '' || statusFilter !== 'all'
 
+  useEffect(() => {
+    if (loading || error || members.length === 0) {
+      return
+    }
+
+    let timer: number | null = null
+    let idleHandle: number | null = null
+
+    const runPrefetch = () => {
+      members.slice(0, 6).forEach((member) => preloadMemberDetail(member.id))
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idleHandle = window.requestIdleCallback(runPrefetch, { timeout: 1000 })
+    } else {
+      timer = window.setTimeout(runPrefetch, 180)
+    }
+
+    return () => {
+      if (timer !== null) {
+        window.clearTimeout(timer)
+      }
+      if (idleHandle !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle)
+      }
+    }
+  }, [error, loading, members])
+
   const pageSummary = useMemo(() => {
     if (total <= 0) {
       return '共 0 名队员'
@@ -521,7 +550,13 @@ export function MembersPage() {
                     {members.map((member) => (
                       <tr key={member.id}>
                         <td className="members-name-cell">
-                          <Link className="inline-link" to={`/member/${member.id}`}>
+                          <Link
+                            className="inline-link"
+                            to={`/member/${member.id}`}
+                            onMouseEnter={() => preloadMemberDetail(member.id)}
+                            onFocus={() => preloadMemberDetail(member.id)}
+                            onTouchStart={() => preloadMemberDetail(member.id)}
+                          >
                             {member.name}
                           </Link>
                         </td>
@@ -540,7 +575,13 @@ export function MembersPage() {
                           </span>
                         </td>
                         <td>
-                          <Link className="inline-link" to={`/member/${member.id}`}>
+                          <Link
+                            className="inline-link"
+                            to={`/member/${member.id}`}
+                            onMouseEnter={() => preloadMemberDetail(member.id)}
+                            onFocus={() => preloadMemberDetail(member.id)}
+                            onTouchStart={() => preloadMemberDetail(member.id)}
+                          >
                             查看档案
                           </Link>
                         </td>
