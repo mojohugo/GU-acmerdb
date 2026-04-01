@@ -624,20 +624,46 @@ select:not([multiple]) {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  padding-right: 34px;
+  padding-right: 40px;
+  border-color: rgba(96, 114, 158, 0.36);
   background-image:
-    linear-gradient(45deg, transparent 50%, #6070a4 50%),
-    linear-gradient(135deg, #6070a4 50%, transparent 50%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 249, 255, 0.98)),
+    linear-gradient(180deg, rgba(116, 133, 176, 0.24), rgba(116, 133, 176, 0.24)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%2356668E' stroke-width='1.8' stroke-linecap='square'/%3E%3C/svg%3E");
   background-position:
-    calc(100% - 18px) calc(50% - 2px),
-    calc(100% - 12px) calc(50% - 2px);
-  background-size: 6px 6px, 6px 6px;
+    0 0,
+    calc(100% - 30px) 0,
+    calc(100% - 8px) 50%;
+  background-size:
+    100% 100%,
+    1px 100%,
+    14px 14px;
   background-repeat: no-repeat;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+select:not([multiple]):hover {
+  border-color: rgba(76, 99, 160, 0.5);
+}
+
+select:not([multiple]):focus {
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(243, 248, 255, 1)),
+    linear-gradient(180deg, rgba(66, 96, 176, 0.34), rgba(66, 96, 176, 0.34)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%233C57A3' stroke-width='1.8' stroke-linecap='square'/%3E%3C/svg%3E");
 }
 
 select option {
   background: #fff;
   color: var(--ink-1);
+}
+
+select option:checked {
+  background: #e7efff;
+  color: #2f4689;
 }
 
 .form-grid {
