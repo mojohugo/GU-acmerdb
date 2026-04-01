@@ -276,8 +276,8 @@ p {
 }
 
 .hero-card h2 {
-  margin-top: 8px;
-  font-size: clamp(26px, 2.4vw, 34px);
+  margin-top: 0;
+  font-size: clamp(24px, 2vw, 30px);
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: 0.01em;
@@ -322,7 +322,7 @@ p {
 }
 
 .home-hero {
-  padding-bottom: 12px;
+  padding: 12px 14px;
 }
 
 .home-hero-main {
@@ -464,9 +464,9 @@ p {
 
 .panel-header {
   display: grid;
-  gap: 4px;
+  gap: 0;
   margin-bottom: 8px;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
   border-bottom: 1px solid rgba(113, 127, 168, 0.16);
 }
 
@@ -480,9 +480,7 @@ p {
 }
 
 .panel-header p {
-  color: var(--ink-2);
-  max-width: 60ch;
-  font-size: 13px;
+  display: none;
 }
 
 .stats-grid {
@@ -1446,11 +1444,7 @@ tbody tr:last-child td {
 }
 
 .todo-note {
-  color: #685a30;
-  border: 1px solid rgba(193, 172, 117, 0.36);
-  border-radius: var(--radius-sm);
-  padding: 8px;
-  background: #fbf6e6;
+  display: none;
 }
 
 .footer {

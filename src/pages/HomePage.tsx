@@ -3,7 +3,6 @@ import { Activity, Trophy, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ContestTypeTag } from '../components/ContestTypeTag'
 import { EmptyState } from '../components/EmptyState'
-import { CONTEST_TYPE_DESCRIPTIONS, CONTEST_TYPE_ORDER } from '../lib/constants'
 import { fetchHomeStats, peekHomeStats } from '../lib/api'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { HomeStats } from '../types'
@@ -111,19 +110,6 @@ export function HomePage() {
     return latestCompetitionPreviews.slice(start, start + latestPageSize)
   }, [latestCompetitionPreviews, latestPage, latestPageSize])
 
-  const latestRecordedAt = useMemo(() => {
-    let candidate: string | null = null
-    for (const competition of latestCompetitionPreviews) {
-      if (!competition.happenedAt) {
-        continue
-      }
-      if (!candidate || competition.happenedAt > candidate) {
-        candidate = competition.happenedAt
-      }
-    }
-    return candidate
-  }, [latestCompetitionPreviews])
-
   useEffect(() => {
     setLatestPage(1)
   }, [latestPageSize])
@@ -135,29 +121,7 @@ export function HomePage() {
   return (
     <div className="stack home-page">
       <section className="hero-card home-hero">
-        <div className="home-hero-main">
-          <div className="home-hero-copy">
-            <p className="hero-kicker">Guangzhou University</p>
-            <h2>ACM 校队信息与成绩记录</h2>
-            <p>
-              把队员履历、赛事记录和获奖信息放在同一个入口，查历史、看全貌都会更顺手。
-            </p>
-            <div className="hero-points">
-              <span>赛事时间线回看</span>
-              <span>成员维度检索</span>
-              <span>管理员在线维护</span>
-            </div>
-          </div>
-          <div className="home-hero-side">
-            <p className="home-hero-side-title">导航入口</p>
-            <p className="home-hero-side-note">
-              首页、队员档案、赛事时间线、获奖统计、管理均已放到顶部导航栏。
-            </p>
-            <p className="home-hero-side-note">
-              最近赛事日期：{latestRecordedAt ?? '暂无'}
-            </p>
-          </div>
-        </div>
+        <h2>GU ACMerDB</h2>
       </section>
 
       {loading ? <p className="status">正在加载首页统计...</p> : null}
@@ -265,20 +229,6 @@ export function HomePage() {
           </section>
         </>
       ) : null}
-
-      <section className="panel home-type-panel">
-        <div className="panel-header">
-          <h3>支持的赛事类别</h3>
-        </div>
-        <div className="type-grid">
-          {CONTEST_TYPE_ORDER.filter((type) => type !== 'other').map((type) => (
-            <article key={type} className="type-item home-type-item">
-              <ContestTypeTag category={type} />
-              <p>{CONTEST_TYPE_DESCRIPTIONS[type]}</p>
-            </article>
-          ))}
-        </div>
-      </section>
     </div>
   )
 }

@@ -13,10 +13,10 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/', label: '首页', end: true },
-  { to: '/members', label: '队员档案' },
-  { to: '/cohorts', label: '赛事时间线' },
-  { to: '/awards', label: '获奖统计' },
-  { to: '/admin', label: '管理' },
+  { to: '/members', label: '队员' },
+  { to: '/cohorts', label: '时间线' },
+  { to: '/awards', label: '获奖' },
+  { to: '/admin', label: '后台' },
 ]
 
 export function Layout({ children }: PropsWithChildren) {
@@ -43,10 +43,6 @@ export function Layout({ children }: PropsWithChildren) {
       </header>
 
       <main className="main-panel">{children}</main>
-
-      <footer className="footer">
-        <p>GU ACMerDB · 广州大学 ACM 校队</p>
-      </footer>
     </div>
   )
 }
