@@ -1,51 +1,18 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
-
-const loadHomePage = async () => {
-  const module = await import('./pages/HomePage')
-  return { default: module.HomePage }
-}
-
-const loadMembersPage = async () => {
-  const module = await import('./pages/MembersPage')
-  return { default: module.MembersPage }
-}
-
-const loadMemberDetailPage = async () => {
-  const module = await import('./pages/MemberDetailPage')
-  return { default: module.MemberDetailPage }
-}
-
-const loadCohortsPage = async () => {
-  const module = await import('./pages/CohortsPage')
-  return { default: module.CohortsPage }
-}
-
-const loadAwardsPage = async () => {
-  const module = await import('./pages/AwardsPage')
-  return { default: module.AwardsPage }
-}
-
-const loadCompetitionDetailPage = async () => {
-  const module = await import('./pages/CompetitionDetailPage')
-  return { default: module.CompetitionDetailPage }
-}
-
-const loadAdminPage = async () => {
-  const module = await import('./pages/AdminPage')
-  return { default: module.AdminPage }
-}
-
-const loadAboutPage = async () => {
-  const module = await import('./pages/AboutPage')
-  return { default: module.AboutPage }
-}
-
-const loadNotFoundPage = async () => {
-  const module = await import('./pages/NotFoundPage')
-  return { default: module.NotFoundPage }
-}
+import {
+  loadAboutPage,
+  loadAdminPage,
+  loadAwardsPage,
+  loadCohortsPage,
+  loadCompetitionDetailPage,
+  loadHomePage,
+  loadMemberDetailPage,
+  loadMembersPage,
+  loadNotFoundPage,
+  preloadCriticalRoutes,
+} from './lib/routePreload'
 
 const HomePage = lazy(loadHomePage)
 const MembersPage = lazy(loadMembersPage)
@@ -63,6 +30,7 @@ function App() {
     let idleHandle: number | null = null
     const runWarmup = () => {
       void import('./lib/api').then((module) => module.warmPublicData())
+      preloadCriticalRoutes()
     }
 
     if (typeof window.requestIdleCallback === 'function') {

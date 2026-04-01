@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from 'react'
 import { Link, NavLink } from 'react-router-dom'
+import { preloadRouteForNavigation } from '../lib/routePreload'
 
 function navClassName({ isActive }: { isActive: boolean }) {
   return isActive ? 'nav-link nav-link-active' : 'nav-link'
@@ -20,23 +21,47 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 export function Layout({ children }: PropsWithChildren) {
+  const handlePrefetch = (path: string) => {
+    preloadRouteForNavigation(path)
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar topbar-navbar">
         <div className="topbar-head topbar-head-navbar">
-          <Link to="/" className="topbar-brand topbar-brand-navbar topbar-brand-link">
+          <Link
+            to="/"
+            className="topbar-brand topbar-brand-navbar topbar-brand-link"
+            onMouseEnter={() => handlePrefetch('/')}
+            onFocus={() => handlePrefetch('/')}
+            onTouchStart={() => handlePrefetch('/')}
+          >
             GU ACMerDB
           </Link>
 
           <nav className="topbar-nav topbar-nav-navbar">
             {NAV_ITEMS.map((item) => (
-              <NavLink key={item.to} to={item.to} className={navClassName} end={item.end}>
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={navClassName}
+                end={item.end}
+                onMouseEnter={() => handlePrefetch(item.to)}
+                onFocus={() => handlePrefetch(item.to)}
+                onTouchStart={() => handlePrefetch(item.to)}
+              >
                 <span className="nav-link-text">{item.label}</span>
               </NavLink>
             ))}
           </nav>
 
-          <Link className="topbar-about-link" to="/about">
+          <Link
+            className="topbar-about-link"
+            to="/about"
+            onMouseEnter={() => handlePrefetch('/about')}
+            onFocus={() => handlePrefetch('/about')}
+            onTouchStart={() => handlePrefetch('/about')}
+          >
             关于
           </Link>
         </div>
