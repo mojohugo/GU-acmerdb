@@ -1492,10 +1492,16 @@ tbody tr:last-child td {
   line-height: 1;
 }
 
-.awards-insight-grid {
+.awards-insight-layout {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: start;
+}
+
+.awards-insight-stack {
+  display: grid;
+  gap: 8px;
 }
 
 .awards-insight-card {
@@ -1505,6 +1511,12 @@ tbody tr:last-child td {
   background: rgba(255, 255, 255, 0.84);
   display: grid;
   gap: 10px;
+  align-content: start;
+  height: fit-content;
+}
+
+.awards-insight-card-top {
+  min-height: 100%;
 }
 
 .awards-insight-card h3 {
@@ -1735,8 +1747,12 @@ tbody tr:last-child td {
     max-width: none;
   }
 
-  .awards-insight-grid {
+  .awards-insight-layout {
     grid-template-columns: 1fr;
+  }
+
+  .awards-insight-card-top {
+    min-height: 0;
   }
 
   .awards-pagination {

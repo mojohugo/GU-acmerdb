@@ -520,54 +520,56 @@ export function AwardsPage() {
               </article>
             </section>
 
-            <section className="awards-insight-grid">
-              <article className="awards-insight-card">
-                <h3>奖项等级</h3>
-                <ul className="awards-rank-list">
-                  {TONE_ORDER.map((tone) => (
-                    <li key={tone} className="awards-rank-item">
-                      <div className="awards-rank-main">
-                        <span className="awards-rank-label">{TONE_LABELS[tone]}</span>
-                        <span className="awards-rank-track">
-                          <span
-                            className={`awards-rank-fill awards-rank-fill-${tone}`}
-                            style={{ width: `${toScalePercent(summary.toneCounts[tone], toneMax)}%` }}
-                          />
-                        </span>
-                      </div>
-                      <strong>{summary.toneCounts[tone]}</strong>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-
-              <article className="awards-insight-card">
-                <h3>赛事分类</h3>
-                {summary.categoryCounts.length === 0 ? (
-                  <p className="status-hint">暂无数据</p>
-                ) : (
+            <section className="awards-insight-layout">
+              <div className="awards-insight-stack">
+                <article className="awards-insight-card">
+                  <h3>奖项等级</h3>
                   <ul className="awards-rank-list">
-                    {summary.categoryCounts.map((item) => (
-                      <li key={item.category} className="awards-rank-item">
+                    {TONE_ORDER.map((tone) => (
+                      <li key={tone} className="awards-rank-item">
                         <div className="awards-rank-main">
-                          <span className="awards-rank-label">
-                            {CONTEST_TYPE_LABELS[item.category]}
-                          </span>
+                          <span className="awards-rank-label">{TONE_LABELS[tone]}</span>
                           <span className="awards-rank-track">
                             <span
-                              className="awards-rank-fill awards-rank-fill-default"
-                              style={{ width: `${toScalePercent(item.count, categoryMax)}%` }}
+                              className={`awards-rank-fill awards-rank-fill-${tone}`}
+                              style={{ width: `${toScalePercent(summary.toneCounts[tone], toneMax)}%` }}
                             />
                           </span>
                         </div>
-                        <strong>{item.count}</strong>
+                        <strong>{summary.toneCounts[tone]}</strong>
                       </li>
                     ))}
                   </ul>
-                )}
-              </article>
+                </article>
 
-              <article className="awards-insight-card">
+                <article className="awards-insight-card">
+                  <h3>赛事分类</h3>
+                  {summary.categoryCounts.length === 0 ? (
+                    <p className="status-hint">暂无数据</p>
+                  ) : (
+                    <ul className="awards-rank-list">
+                      {summary.categoryCounts.map((item) => (
+                        <li key={item.category} className="awards-rank-item">
+                          <div className="awards-rank-main">
+                            <span className="awards-rank-label">
+                              {CONTEST_TYPE_LABELS[item.category]}
+                            </span>
+                            <span className="awards-rank-track">
+                              <span
+                                className="awards-rank-fill awards-rank-fill-default"
+                                style={{ width: `${toScalePercent(item.count, categoryMax)}%` }}
+                              />
+                            </span>
+                          </div>
+                          <strong>{item.count}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </article>
+              </div>
+
+              <article className="awards-insight-card awards-insight-card-top">
                 <h3>Top10 队员</h3>
                 {summary.memberTop.length === 0 ? (
                   <p className="status-hint">暂无数据</p>
