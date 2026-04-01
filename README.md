@@ -37,6 +37,8 @@ values ('YOUR_AUTH_USER_ID', 'Admin', true)
 on conflict (user_id) do update set is_admin = excluded.is_admin;
 ```
 
+> 已有项目升级：建议重新执行一次 `supabase/schema.sql`，会补齐查询性能索引（成员检索、获奖查询、赛事时间排序等）。
+
 ## GitHub Pages 部署
 
 - 已包含 workflow: `.github/workflows/deploy.yml`

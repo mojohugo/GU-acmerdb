@@ -62,6 +62,9 @@ const competitionFields = [
   'created_at',
 ].join(',')
 
+const competitionFieldsWithParticipants =
+  `${competitionFields},competition_members(member_id,members(id,name,cohort_year))`
+
 const competitionMediaFields = [
   'id',
   'competition_id',
@@ -93,7 +96,7 @@ const MEMBER_DETAIL_CACHE_TTL_MS = 2 * 60_000
 const COMPETITION_DETAIL_CACHE_TTL_MS = 2 * 60_000
 const COHORT_OVERVIEW_CACHE_TTL_MS = 60_000
 const COHORT_TIMELINE_CACHE_TTL_MS = 60_000
-const AWARDS_OVERVIEW_CACHE_TTL_MS = 60_000
+const AWARDS_OVERVIEW_CACHE_TTL_MS = 5 * 60_000
 const HOME_STATS_CACHE_TTL_MS = 60_000
 
 const DEFAULT_MEMBERS_PAGE = 1
@@ -230,6 +233,10 @@ function asCategory(value: unknown): ContestCategory {
     : 'other'
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
 function mapMember(row: Record<string, unknown>): Member {
   return {
     id: asString(row.id) ?? '',
@@ -271,6 +278,45 @@ function mapCompetition(
     remark: asString(row.remark),
     createdAt: asString(row.created_at),
     participants,
+  }
+}
+
+function mapCompetitionWithEmbeddedParticipants(
+  row: Record<string, unknown>,
+): Competition {
+  const mappedCompetition = mapCompetition(row)
+  const participants = new Map<string, MemberMini>()
+
+  const links = Array.isArray(row.competition_members)
+    ? row.competition_members
+    : []
+
+  for (const item of links) {
+    if (!isRecord(item)) {
+      continue
+    }
+
+    const embeddedMembers = Array.isArray(item.members)
+      ? item.members
+      : item.members && isRecord(item.members)
+        ? [item.members]
+        : []
+
+    for (const embeddedMember of embeddedMembers) {
+      if (!isRecord(embeddedMember)) {
+        continue
+      }
+
+      const member = mapMemberMini(embeddedMember)
+      if (member.id && !participants.has(member.id)) {
+        participants.set(member.id, member)
+      }
+    }
+  }
+
+  return {
+    ...mappedCompetition,
+    participants: [...participants.values()],
   }
 }
 
@@ -823,6 +869,25 @@ export async function fetchAwardsOverview() {
     ttlMs: AWARDS_OVERVIEW_CACHE_TTL_MS,
     fetcher: async () => {
       const client = getSupabaseClient()
+      const { data: embeddedRows, error: embeddedError } = await client
+        .from('competitions')
+        .select(competitionFieldsWithParticipants)
+        .or('award.not.is.null,rank.not.is.null')
+        .order('happened_at', { ascending: false })
+        .order('season_year', { ascending: false })
+
+      if (!embeddedError) {
+        return (
+          (
+            (embeddedRows as unknown as Record<string, unknown>[] | null) ??
+            []
+          )
+            .map((row) => mapCompetitionWithEmbeddedParticipants(row))
+            .filter(hasAwardContent)
+            .sort(sortCompetitionDesc)
+        )
+      }
+
       const { data: rows, error } = await client
         .from('competitions')
         .select(competitionFields)
@@ -852,6 +917,23 @@ export async function fetchCohortOverview() {
     ttlMs: COHORT_OVERVIEW_CACHE_TTL_MS,
     fetcher: async () => {
       const client = getSupabaseClient()
+      const { data: embeddedRows, error: embeddedError } = await client
+        .from('competitions')
+        .select(competitionFieldsWithParticipants)
+        .order('happened_at', { ascending: false })
+        .order('season_year', { ascending: false })
+
+      if (!embeddedError) {
+        return (
+          (
+            (embeddedRows as unknown as Record<string, unknown>[] | null) ??
+            []
+          )
+            .map((row) => mapCompetitionWithEmbeddedParticipants(row))
+            .sort(sortCompetitionDesc)
+        )
+      }
+
       const { data: rows, error } = await client
         .from('competitions')
         .select(competitionFields)

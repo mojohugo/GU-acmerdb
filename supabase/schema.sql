@@ -1,6 +1,7 @@
 -- Schema for GU ACMerDB (Supabase PostgreSQL)
 
 create extension if not exists pgcrypto;
+create extension if not exists pg_trgm;
 
 create table if not exists public.members (
   id uuid primary key default gen_random_uuid(),
@@ -79,6 +80,28 @@ create index if not exists idx_competition_media_competition
 
 create index if not exists idx_competition_media_standing
   on public.competition_media (standing_competition_id, media_type, created_at desc);
+
+create index if not exists idx_members_cohort_active_name
+  on public.members (cohort_year desc, is_active, name asc);
+
+create index if not exists idx_members_name_trgm
+  on public.members using gin (lower(name) gin_trgm_ops);
+
+create index if not exists idx_members_handle_trgm
+  on public.members using gin (lower(handle) gin_trgm_ops);
+
+create index if not exists idx_competitions_happened_season
+  on public.competitions (happened_at desc nulls last, season_year desc, id desc);
+
+create index if not exists idx_competitions_award_rank_partial
+  on public.competitions (happened_at desc nulls last, season_year desc, id desc)
+  where award is not null or rank is not null;
+
+create index if not exists idx_competitions_category_happened
+  on public.competitions (category, happened_at desc nulls last, season_year desc);
+
+create index if not exists idx_competition_members_member
+  on public.competition_members (member_id, competition_id);
 
 create or replace function public.is_admin(uid uuid)
 returns boolean
