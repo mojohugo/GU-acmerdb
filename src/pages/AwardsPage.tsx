@@ -13,6 +13,7 @@ type CategoryFilter = ContestCategory | 'all'
 type AwardTone = 'gold' | 'silver' | 'bronze' | 'excellent' | 'other'
 type AwardTierFilter = AwardTone | 'all'
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
+const TONE_ORDER: AwardTone[] = ['gold', 'silver', 'bronze', 'excellent', 'other']
 
 type AwardRecord = {
   id: string
@@ -48,6 +49,14 @@ const TONE_LABELS: Record<AwardTone, string> = {
   bronze: '铜奖/季军',
   excellent: '优秀/入围',
   other: '其他',
+}
+
+function toScalePercent(value: number, max: number) {
+  if (max <= 0) {
+    return 0
+  }
+
+  return Math.min(100, Math.max(8, Math.round((value / max) * 100)))
 }
 
 function hasAwardRecord(item: Competition) {
@@ -366,15 +375,21 @@ export function AwardsPage() {
     dateFrom.length > 0 ||
     dateTo.length > 0
 
+  const toneMax = Math.max(...TONE_ORDER.map((tone) => summary.toneCounts[tone]), 0)
+  const categoryMax = summary.categoryCounts[0]?.count ?? 0
+  const memberTopMax = summary.memberTop[0]?.count ?? 0
+
   return (
-    <div className="stack">
-      <section className="panel">
-        <div className="panel-header">
+    <div className="stack awards-page">
+      <section className="panel awards-filter-panel">
+        <div className="awards-filter-head">
           <h2>获奖查询与统计</h2>
-          <p>支持按关键词、赛事分类、奖项等级、日期范围筛选，并可导出查询结果和统计摘要。</p>
+          {!loading && !error ? (
+            <span className="awards-total-pill">共 {filteredRecords.length} 条</span>
+          ) : null}
         </div>
 
-        <div className="filters">
+        <div className="awards-filter-grid">
           <label>
             关键词
             <input
@@ -433,41 +448,41 @@ export function AwardsPage() {
           </label>
         </div>
 
-        <div className="filters-toolbar">
-          <button
-            className="btn"
-            type="button"
-            disabled={!hasFilters}
-            onClick={() => {
-              setKeyword('')
-              setCategoryFilter('all')
-              setTierFilter('all')
-              setDateFrom('')
-              setDateTo('')
-            }}
-          >
-            清空筛选
-          </button>
-          <button
-            className="btn"
-            type="button"
-            disabled={loading || Boolean(error) || filteredRecords.length === 0}
-            onClick={() => exportAwardRecordsAsCsv(filteredRecords)}
-          >
-            导出查询结果 CSV
-          </button>
-          <button
-            className="btn"
-            type="button"
-            disabled={loading || Boolean(error) || filteredRecords.length === 0}
-            onClick={() => exportAwardStatsAsCsv(summary)}
-          >
-            导出统计摘要 CSV
-          </button>
-          {!loading && !error ? (
-            <span className="status-hint">共 {filteredRecords.length} 条记录</span>
-          ) : null}
-          <label>
+        <div className="awards-toolbar">
+          <div className="awards-toolbar-actions">
+            <button
+              className="btn"
+              type="button"
+              disabled={!hasFilters}
+              onClick={() => {
+                setKeyword('')
+                setCategoryFilter('all')
+                setTierFilter('all')
+                setDateFrom('')
+                setDateTo('')
+              }}
+            >
+              清空筛选
+            </button>
+            <button
+              className="btn"
+              type="button"
+              disabled={loading || Boolean(error) || filteredRecords.length === 0}
+              onClick={() => exportAwardRecordsAsCsv(filteredRecords)}
+            >
+              导出明细 CSV
+            </button>
+            <button
+              className="btn"
+              type="button"
+              disabled={loading || Boolean(error) || filteredRecords.length === 0}
+              onClick={() => exportAwardStatsAsCsv(summary)}
+            >
+              导出统计 CSV
+            </button>
+          </div>
+
+          <label className="awards-page-size-label">
             每页数量
             <select
               value={pageSize}
@@ -482,92 +497,115 @@ export function AwardsPage() {
             </select>
           </label>
         </div>
+      </section>
 
-        {loading ? <p className="status">正在加载获奖数据...</p> : null}
-        {error ? <p className="status status-error">{error}</p> : null}
+      {loading ? <p className="status">正在加载获奖数据...</p> : null}
+      {error ? <p className="status status-error">{error}</p> : null}
 
-        {!loading && !error ? (
-          filteredRecords.length === 0 ? (
-            <EmptyState title="暂无匹配获奖记录" description="可调整筛选条件后重试。" />
-          ) : (
-            <>
-              <section className="stats-grid award-stats-grid">
-                <article className="stat-card">
-                  <div className="stat-card-head">
-                    <p>获奖记录</p>
-                  </div>
-                  <strong>{summary.totalRecords}</strong>
-                </article>
-                <article className="stat-card">
-                  <div className="stat-card-head">
-                    <p>覆盖赛事</p>
-                  </div>
-                  <strong>{summary.uniqueCompetitions}</strong>
-                </article>
-                <article className="stat-card">
-                  <div className="stat-card-head">
-                    <p>覆盖队员</p>
-                  </div>
-                  <strong>{summary.uniqueMembers}</strong>
-                </article>
-              </section>
+      {!loading && !error ? (
+        filteredRecords.length === 0 ? (
+          <EmptyState title="暂无匹配获奖记录" />
+        ) : (
+          <>
+            <section className="awards-kpi-grid">
+              <article className="awards-kpi-card">
+                <span>获奖记录</span>
+                <strong>{summary.totalRecords}</strong>
+              </article>
+              <article className="awards-kpi-card">
+                <span>覆盖赛事</span>
+                <strong>{summary.uniqueCompetitions}</strong>
+              </article>
+              <article className="awards-kpi-card">
+                <span>覆盖队员</span>
+                <strong>{summary.uniqueMembers}</strong>
+              </article>
+            </section>
 
-              <section className="award-analysis-grid">
-                <article className="sub-panel award-analysis-card">
-                  <h4>奖项等级分布</h4>
-                  <ul className="simple-list">
-                    {(['gold', 'silver', 'bronze', 'excellent', 'other'] as AwardTone[]).map((tone) => (
-                      <li key={tone}>
-                        <span>{TONE_LABELS[tone]}</span>
-                        <strong>{summary.toneCounts[tone]}</strong>
+            <section className="awards-insight-grid">
+              <article className="awards-insight-card">
+                <h3>奖项等级</h3>
+                <ul className="awards-rank-list">
+                  {TONE_ORDER.map((tone) => (
+                    <li key={tone} className="awards-rank-item">
+                      <div className="awards-rank-main">
+                        <span className="awards-rank-label">{TONE_LABELS[tone]}</span>
+                        <span className="awards-rank-track">
+                          <span
+                            className={`awards-rank-fill awards-rank-fill-${tone}`}
+                            style={{ width: `${toScalePercent(summary.toneCounts[tone], toneMax)}%` }}
+                          />
+                        </span>
+                      </div>
+                      <strong>{summary.toneCounts[tone]}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+
+              <article className="awards-insight-card">
+                <h3>赛事分类</h3>
+                {summary.categoryCounts.length === 0 ? (
+                  <p className="status-hint">暂无数据</p>
+                ) : (
+                  <ul className="awards-rank-list">
+                    {summary.categoryCounts.map((item) => (
+                      <li key={item.category} className="awards-rank-item">
+                        <div className="awards-rank-main">
+                          <span className="awards-rank-label">
+                            {CONTEST_TYPE_LABELS[item.category]}
+                          </span>
+                          <span className="awards-rank-track">
+                            <span
+                              className="awards-rank-fill awards-rank-fill-default"
+                              style={{ width: `${toScalePercent(item.count, categoryMax)}%` }}
+                            />
+                          </span>
+                        </div>
+                        <strong>{item.count}</strong>
                       </li>
                     ))}
                   </ul>
-                </article>
+                )}
+              </article>
 
-                <article className="sub-panel award-analysis-card">
-                  <h4>赛事分类分布</h4>
-                  <ul className="simple-list">
-                    {summary.categoryCounts.length === 0 ? (
-                      <li>
-                        <span>暂无数据</span>
-                        <strong>0</strong>
-                      </li>
-                    ) : (
-                      summary.categoryCounts.map((item) => (
-                        <li key={item.category}>
-                          <span>{CONTEST_TYPE_LABELS[item.category]}</span>
-                          <strong>{item.count}</strong>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </article>
-
-                <article className="sub-panel award-analysis-card">
-                  <h4>获奖成员 Top10</h4>
-                  <ul className="simple-list">
-                    {summary.memberTop.length === 0 ? (
-                      <li>
-                        <span>暂无数据</span>
-                        <strong>0</strong>
-                      </li>
-                    ) : (
-                      summary.memberTop.map((item) => (
-                        <li key={item.memberId}>
-                          <Link className="inline-link" to={`/member/${item.memberId}`}>
+              <article className="awards-insight-card">
+                <h3>Top10 队员</h3>
+                {summary.memberTop.length === 0 ? (
+                  <p className="status-hint">暂无数据</p>
+                ) : (
+                  <ul className="awards-rank-list">
+                    {summary.memberTop.map((item) => (
+                      <li key={item.memberId} className="awards-rank-item">
+                        <div className="awards-rank-main">
+                          <Link className="inline-link awards-member-link" to={`/member/${item.memberId}`}>
                             {item.memberName}
                           </Link>
-                          <strong>{item.count}</strong>
-                        </li>
-                      ))
-                    )}
+                          <span className="awards-rank-track">
+                            <span
+                              className="awards-rank-fill awards-rank-fill-member"
+                              style={{ width: `${toScalePercent(item.count, memberTopMax)}%` }}
+                            />
+                          </span>
+                        </div>
+                        <strong>{item.count}</strong>
+                      </li>
+                    ))}
                   </ul>
-                </article>
-              </section>
+                )}
+              </article>
+            </section>
 
-              <div className="table-scroll">
-                <table>
+            <section className="panel awards-table-panel">
+              <div className="awards-table-head">
+                <h3>获奖明细</h3>
+                <span className="status-hint">
+                  第 {page} / {pageCount} 页（本页 {pagedRecords.length} 条）
+                </span>
+              </div>
+
+              <div className="table-scroll awards-table-scroll">
+                <table className="awards-table">
                   <thead>
                     <tr>
                       <th>日期</th>
@@ -595,9 +633,11 @@ export function AwardsPage() {
                         <td>{record.award ?? '-'}</td>
                         <td>{record.teamName ?? '-'}</td>
                         <td>
-                          {record.memberIds.length === 0
-                            ? '-'
-                            : record.memberIds.map((memberId, index) => (
+                          {record.memberIds.length === 0 ? (
+                            '-'
+                          ) : (
+                            <div className="awards-member-list">
+                              {record.memberIds.map((memberId, index) => (
                                 <span key={`${record.id}-${memberId}`}>
                                   {index > 0 ? '、' : ''}
                                   <Link className="inline-link" to={`/member/${memberId}`}>
@@ -605,13 +645,16 @@ export function AwardsPage() {
                                   </Link>
                                 </span>
                               ))}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <div className="pagination-row">
+
+              <div className="pagination-row awards-pagination">
                 <button
                   className="btn"
                   type="button"
@@ -621,7 +664,7 @@ export function AwardsPage() {
                   上一页
                 </button>
                 <span className="status-hint">
-                  第 {page} / {pageCount} 页（本页 {pagedRecords.length} 条）
+                  第 {page} / {pageCount} 页
                 </span>
                 <button
                   className="btn"
@@ -632,14 +675,10 @@ export function AwardsPage() {
                   下一页
                 </button>
               </div>
-            </>
-          )
-        ) : null}
-
-        <p className="todo-note">
-          TODO: 后续可补充“跨年度对比图、按赛事级别聚合、成员奖项趋势曲线、导出任务中心（异步）”。
-        </p>
-      </section>
+            </section>
+          </>
+        )
+      ) : null}
     </div>
   )
 }
