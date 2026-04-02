@@ -546,6 +546,10 @@ p {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.cohorts-filters {
+  grid-template-columns: minmax(170px, 240px) minmax(260px, 1fr);
+}
+
 .filters-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -684,11 +688,11 @@ label > .animated-select {
 
 .animated-select-trigger {
   width: 100%;
-  min-height: 38px;
-  padding: 8px 11px;
-  border: 1px solid rgba(111, 125, 164, 0.28);
-  border-radius: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 255, 0.98));
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid rgba(100, 117, 161, 0.32);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(242, 247, 255, 0.98));
   color: var(--ink-1);
   font: inherit;
   font-size: 14px;
@@ -698,20 +702,25 @@ label > .animated-select {
   gap: 8px;
   cursor: pointer;
   text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
-    background-color 0.2s ease;
+    background-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .animated-select-trigger:hover {
-  border-color: rgba(76, 99, 160, 0.5);
+  border-color: rgba(72, 98, 172, 0.58);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(233, 241, 255, 0.98));
 }
 
 .animated-select-trigger:focus-visible {
   outline: none;
-  border-color: rgba(66, 96, 176, 0.6);
-  box-shadow: 0 0 0 3px rgba(66, 96, 176, 0.12);
+  border-color: rgba(66, 96, 176, 0.66);
+  box-shadow:
+    0 0 0 3px rgba(66, 96, 176, 0.14),
+    0 8px 18px rgba(54, 78, 143, 0.14);
   background: #fff;
 }
 
@@ -723,21 +732,33 @@ label > .animated-select {
 }
 
 .animated-select-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
   color: #58688f;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
-  transition: transform 0.2s ease;
+  background: rgba(80, 102, 158, 0.12);
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .animated-select-open .animated-select-caret {
   transform: rotate(180deg);
+  color: #324d96;
+  background: rgba(72, 103, 186, 0.18);
 }
 
 .animated-select-menu-wrap {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   z-index: 40;
   max-height: 0;
   opacity: 0;
@@ -767,14 +788,14 @@ label > .animated-select {
 
 .animated-select-menu {
   margin: 0;
-  padding: 4px 0;
+  padding: 6px;
   list-style: none;
   max-height: 252px;
   overflow: auto;
-  border: 1px solid rgba(98, 114, 156, 0.28);
-  border-radius: 0;
-  background: #fff;
-  box-shadow: 0 8px 18px rgba(66, 83, 128, 0.16);
+  border: 1px solid rgba(92, 112, 162, 0.26);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 14px 30px rgba(52, 72, 128, 0.2);
 }
 
 .animated-select-menu li {
@@ -784,23 +805,25 @@ label > .animated-select {
 .animated-select-option {
   width: 100%;
   border: 0;
-  border-radius: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--ink-1);
   font: inherit;
   font-size: 14px;
   line-height: 1.4;
   text-align: left;
-  padding: 7px 10px;
+  padding: 8px 10px;
   cursor: pointer;
   transition:
     background-color 0.16s ease,
-    color 0.16s ease;
+    color 0.16s ease,
+    transform 0.16s ease;
 }
 
 .animated-select-option:hover,
 .animated-select-option-highlighted {
   background: rgba(234, 241, 255, 0.9);
+  transform: translateX(1px);
 }
 
 .animated-select-option:focus-visible {
@@ -811,7 +834,7 @@ label > .animated-select {
 .animated-select-option-selected {
   font-weight: 650;
   color: #2f4689;
-  background: rgba(227, 236, 255, 0.96);
+  background: rgba(223, 233, 255, 0.98);
 }
 
 .animated-select-option:disabled {
@@ -823,7 +846,9 @@ label > .animated-select {
 .animated-select-disabled .animated-select-trigger {
   cursor: not-allowed;
   opacity: 0.58;
-  background: rgba(247, 249, 253, 0.95);
+  border-color: rgba(103, 118, 152, 0.16);
+  background: rgba(247, 249, 253, 0.96);
+  box-shadow: none;
 }
 
 .form-grid {
@@ -1378,6 +1403,17 @@ tbody tr:last-child td {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.timeline-head .contest-tag {
+  padding: 2px 6px;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.timeline-head .contest-tag-icon {
+  width: 11px;
+  height: 11px;
 }
 
 .competition-photo-grid {
@@ -1979,6 +2015,10 @@ tbody tr:last-child td {
   .app-shell {
     width: min(1240px, 96vw);
     padding-top: 0;
+  }
+
+  .cohorts-filters {
+    grid-template-columns: 1fr;
   }
 
   .topbar {

@@ -241,7 +241,7 @@ export function CohortsPage() {
           <p>统一按时间倒序展示，点击比赛进入详情页查看队伍和获奖信息。</p>
         </div>
 
-        <div className="filters">
+        <div className="filters cohorts-filters">
           <label>
             分类
             <AnimatedSelect
